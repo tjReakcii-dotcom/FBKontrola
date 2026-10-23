@@ -225,7 +225,16 @@ def get_next_version_filename(current_file):
     return f"kontrola_klik_najnova_final_{next_ver}.xlsx"
 
 def get_eval_columns(df_main):
-    return [c for c in df_main.columns if 'Објава' in c or 'Objava' in c or 'Проверка' in c]
+    cols = []
+    keywords = ['Објава', 'Objava', 'Проверка', 'Пресек']
+    start_tracking = False
+    for c in df_main.columns:
+        if 'Дваесет и втора Објава' in c:
+            start_tracking = True
+        if any(k in c for k in keywords) or start_tracking:
+            if c not in ['Р.б.', 'Име и презиме / Профил', 'Предложувач', 'Име на Телеграм (За пребарување)', 'Телефонски број', 'Одговорен контролор', 'Телефонски број (Telegram)', 'Тековен Пресек']:
+                cols.append(c)
+    return cols
 
 def get_official_posts(df_main):
     eval_cols = get_eval_columns(df_main)
@@ -598,17 +607,23 @@ latest_file = get_latest_excel()
 st.sidebar.markdown("### 🗄️ Мастер База")
 uploaded_master = st.sidebar.file_uploader("Прикачи понова база (.xlsx) доколку сакаш:", type=['xlsx'])
 if uploaded_master is not None:
-    save_name = uploaded_master.name if 'kontrola' in uploaded_master.name else get_next_version_filename(latest_file)
-    with open(save_name, "wb") as f:
-        f.write(uploaded_master.getbuffer())
-    latest_file = save_name
-    st.sidebar.success(f"✅ Вчитана нова база: {latest_file}")
+    if "last_uploaded_file" not in st.session_state or st.session_state["last_uploaded_file"] != uploaded_master.name:
+        save_name = uploaded_master.name if 'kontrola' in uploaded_master.name else get_next_version_filename(latest_file)
+        with open(save_name, "wb") as f:
+            f.write(uploaded_master.getbuffer())
+        st.session_state["last_uploaded_file"] = uploaded_master.name
+        latest_file = save_name
+        st.sidebar.success(f"✅ Вчитана нова база: {latest_file}")
+    else:
+        # File was already uploaded and processed; let the system detect newer versions (like 221, 222) naturally
+        latest_file = get_latest_excel()
 
 if not latest_file:
     st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
     st.stop()
 
-st.sidebar.success(f"📂 Активна верзија:\n**{latest_file}**")
+st.sidebar.success(f"📂 Активна верзија:
+**{latest_file}**")
 
 # Копче за симнување на најновата база во секое време
 with open(latest_file, "rb") as f_dl:
