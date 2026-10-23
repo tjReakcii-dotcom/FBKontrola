@@ -608,7 +608,7 @@ if not latest_file:
     st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
     st.stop()
 
-st.sidebar.success(f"📂 Активна верзија:
+st.sidebar.success(f"📂 Активна верзија:\n")
 **{latest_file}**")
 
 # Копче за симнување на најновата база во секое време
