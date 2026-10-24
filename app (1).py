@@ -58,6 +58,44 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
+# 0. ЗАШТИТА СО ЛОЗИНКА (LOGIN SYSTEM)
+# ==============================================================================
+# Овде можеш да ги смениш корисничките имиња и лозинките
+USER_CREDENTIALS = {
+    "admin": "admin123",
+    "toni": "skopje2026"
+}
+
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+def logout():
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    st.markdown('<div class="main-header">🔒 Безбедносна Најава</div>', unsafe_allow_html=True)
+    st.info("Апликацијата е заштитена. Внесете корисничко име и лозинка за пристап.")
+    
+    with st.form("login_form"):
+        username = st.text_input("Корисничко име:")
+        password = st.text_input("Лозинка:", type="password")
+        submit_btn = st.form_submit_button("Најави се")
+        
+        if submit_btn:
+            if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+                st.session_state["authenticated"] = True
+                st.success("Успешна најава! Се вчитува системот...")
+                st.rerun()
+            else:
+                st.error("❌ Погрешно корисничко име или лозинка!")
+    st.stop() # Го стопира вчитувањето на остатокот од апликацијата ако не е најавен
+
+# Додавање копче за одјава во левото мени (се појавува само кога е најавен)
+st.sidebar.button("🚪 Одјави се", on_click=logout)
+st.sidebar.markdown("---")
+
+
+# ==============================================================================
 # 1. КОМПЛЕТЕН АЛИЈАС РЕЧНИК И НОРМАЛИЗАЦИЈА (Сите одлуки од разговорите)
 # ==============================================================================
 CYR_TO_LAT = {
@@ -622,7 +660,8 @@ if not latest_file:
     st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
     st.stop()
 
-st.sidebar.success(f"📂 Активна верзија: **{latest_file}**")
+st.sidebar.success(f"📂 Активна верзија:
+**{latest_file}**")
 
 # Копче за симнување на најновата база во секое време
 with open(latest_file, "rb") as f_dl:
@@ -1003,115 +1042,199 @@ elif menu.startswith("👥 3."):
 # ТАБ 4: ТЕЛЕГРАМ ПОТСЕТНИЦИ ВО ДВЕ БРЗИНИ + ПРЕГЛЕД НА ЛИНК + PRAKAC.PY
 # ------------------------------------------------------------------------------
 elif menu.startswith("📨 4."):
-    st.markdown('<div class="sub-header">📨 Генератор на Телеграм Потсетници во Две Брзини</div>', unsafe_allow_html=True)
-    st.info("Задолжителна контрола: Провери го линкот во картичката подолу пред да ги пуштиш пораките!")
+    st.markdown('<div class="sub-header">📨 Телеграм Потсетници и Масовни Пораки</div>', unsafe_allow_html=True)
 
-    render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab4")
+    tg_tabs = st.tabs(["🤖 Автоматски Потсетници (За најнова објава)", "✍️ Прати Сопствена Порака (Custom)"])
 
-    link_objava = links_meta.get("current_link", "https://www.facebook.com/share/18VUNHn6g6/")
-    col_new = eval_cols[-1]
-    last_5_cols = eval_cols[-5:] if len(eval_cols) >= 5 else eval_cols
+    with tg_tabs[0]:
+        st.info("Задолжителна контрола: Провери го линкот во картичката подолу пред да ги пуштиш пораките!")
+        render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab4")
 
-    messages_data = []
-    skipped_teams = []
+        link_objava = links_meta.get("current_link", "https://www.facebook.com/share/18VUNHn6g6/")
+        col_new = eval_cols[-1]
+        last_5_cols = eval_cols[-5:] if len(eval_cols) >= 5 else eval_cols
 
-    for proposer, group in df_main.groupby('Предложувач'):
-        total = len(group)
-        active = len(group[group[col_new] == '✅'])
-        missing = total - active
-        eff_pct = (active / total * 100) if total > 0 else 0
-        tg_name = group['Име на Телеграм (За пребарување)'].iloc[0]
+        messages_data = []
+        skipped_teams = []
 
-        if missing > 2 and pd.notna(tg_name) and str(tg_name).strip() != '':
-            missing_df = group[group[col_new] != '✅']
-            missing_formatted = []
-            chronic_zero_count = 0
+        for proposer, group in df_main.groupby('Предложувач'):
+            total = len(group)
+            active = len(group[group[col_new] == '✅'])
+            missing = total - active
+            eff_pct = (active / total * 100) if total > 0 else 0
+            tg_name = group['Име на Телеграм (За пребарување)'].iloc[0]
 
-            for _, row_m in missing_df.iterrows():
-                n = row_m['Име и презиме / Профил']
-                cl = str(n).replace('[', '').replace(']', '').replace(' - Предложувач', '').replace(' - Predlozuvac', '').strip()
-                cl = cl.split(' (http')[0].split(' http')[0].strip()
-                likes_last_5 = sum(1 for c in last_5_cols if '✅' in str(row_m[c]))
-                if likes_last_5 == 0:
-                    missing_formatted.append(f"  ▫️ {cl} ❗(0 реакции подолго време)")
-                    chronic_zero_count += 1
+            if missing > 2 and pd.notna(tg_name) and str(tg_name).strip() != '':
+                missing_df = group[group[col_new] != '✅']
+                missing_formatted = []
+                chronic_zero_count = 0
+
+                for _, row_m in missing_df.iterrows():
+                    n = row_m['Име и презиме / Профил']
+                    cl = str(n).replace('[', '').replace(']', '').replace(' - Предложувач', '').replace(' - Predlozuvac', '').strip()
+                    cl = cl.split(' (http')[0].split(' http')[0].strip()
+                    likes_last_5 = sum(1 for c in last_5_cols if '✅' in str(row_m[c]))
+                    if likes_last_5 == 0:
+                        missing_formatted.append(f"  ▫️ {cl} ❗(0 реакции подолго време)")
+                        chronic_zero_count += 1
+                    else:
+                        missing_formatted.append(f"  ▫️ {cl}")
+
+                first_name = str(proposer).split()[0].split('(')[0].strip()
+                first_name = NAME_MAP_CYR.get(first_name, first_name)
+                miss_str = "\n".join(missing_formatted)
+                zero_note = "\n💡 Забелешка: Оние што се означени со ❗ немаат реакција на последните 5 објави — провери дали кликаат од друг профил или кажи со кого да ги замениме.\n" if chronic_zero_count > 0 else ""
+
+                if eff_pct >= 60.0 or missing <= 4:
+                    msg = (
+                        f"Здраво {first_name}! 👋\n\n"
+                        f"🌟 Браво за тимот, одлично газите на најновата објава! 📌\n"
+                        f"Моментално сте на високи: ✅ {active} од {total} активни членови ({eff_pct:.0f}%).\n\n"
+                        f"🏁 На чекор сме до 100% — пушти им само уште еден брз потсетник на преостанатите {missing}:\n"
+                        f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
+                        f"Да ве заокружиме на максимум! Ти благодарам! 🚀💪"
+                    )
+                    brzina_label = "🌟 БРЗИНА 1 (Топ тим)"
+                elif active == 0:
+                    msg = (
+                        f"Здраво {first_name}! 👋\n\n"
+                        f"🔔 Важен потсетник за најновата објава 📌\n"
+                        f"Од твојот тим моментално сè уште сме на 0 од {total} реакции.\n\n"
+                        f"⚠️ Те молам кликни ти прв/а и веднаш препрати го линкот до твојата група за да се приклучите:\n"
+                        f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
+                        f"Ајде да го раздвижиме тимот и да фатиме чекор со мрежата! 🙏🚀"
+                    )
+                    brzina_label = "⚠️ БРЗИНА 2 (Аларм 0%)"
                 else:
-                    missing_formatted.append(f"  ▫️ {cl}")
+                    msg = (
+                        f"Здраво {first_name}! 👋\n\n"
+                        f"🔔 Потсетник за мобилизација на најновата објава 📌\n"
+                        f"Од твојот тим досега се вклучени само: ✅ {active} од {total} членови ({eff_pct:.0f}%).\n\n"
+                        f"⚠️ Ни фалат реакции од следните {missing} членови за да го кренеме просекот:\n"
+                        f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
+                        f"Те молам контактирај ги за да се вклучат сите и да ја исполниме целта! 🙏💪"
+                    )
+                    brzina_label = "🔔 БРЗИНА 2 (Мобилизација)"
 
-            first_name = str(proposer).split()[0].split('(')[0].strip()
-            first_name = NAME_MAP_CYR.get(first_name, first_name)
-            miss_str = "\n".join(missing_formatted)
-            zero_note = "\n💡 Забелешка: Оние што се означени со ❗ немаат реакција на последните 5 објави — провери дали кликаат од друг профил или кажи со кого да ги замениме.\n" if chronic_zero_count > 0 else ""
-
-            if eff_pct >= 60.0 or missing <= 4:
-                msg = (
-                    f"Здраво {first_name}! 👋\n\n"
-                    f"🌟 Браво за тимот, одлично газите на најновата објава! 📌\n"
-                    f"Моментално сте на високи: ✅ {active} од {total} активни членови ({eff_pct:.0f}%).\n\n"
-                    f"🏁 На чекор сме до 100% — пушти им само уште еден брз потсетник на преостанатите {missing}:\n"
-                    f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
-                    f"Да ве заокружиме на максимум! Ти благодарам! 🚀💪"
-                )
-                brzina_label = "🌟 БРЗИНА 1 (Топ тим)"
-            elif active == 0:
-                msg = (
-                    f"Здраво {first_name}! 👋\n\n"
-                    f"🔔 Важен потсетник за најновата објава 📌\n"
-                    f"Од твојот тим моментално сè уште сме на 0 од {total} реакции.\n\n"
-                    f"⚠️ Те молам кликни ти прв/а и веднаш препрати го линкот до твојата група за да се приклучите:\n"
-                    f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
-                    f"Ајде да го раздвижиме тимот и да фатиме чекор со мрежата! 🙏🚀"
-                )
-                brzina_label = "⚠️ БРЗИНА 2 (Аларм 0%)"
+                messages_data.append({
+                    'Предлагач': proposer,
+                    'Телеграм': str(tg_name).strip(),
+                    'Брзина': brzina_label,
+                    'Активни': f"{active}/{total} ({eff_pct:.0f}%)",
+                    'Фалат': missing,
+                    'Порака': msg
+                })
             else:
-                msg = (
-                    f"Здраво {first_name}! 👋\n\n"
-                    f"🔔 Потсетник за мобилизација на најновата објава 📌\n"
-                    f"Од твојот тим досега се вклучени само: ✅ {active} од {total} членови ({eff_pct:.0f}%).\n\n"
-                    f"⚠️ Ни фалат реакции од следните {missing} членови за да го кренеме просекот:\n"
-                    f"{miss_str}\n{zero_note}\n🔗 Линк до објавата:\n{link_objava}\n\n"
-                    f"Те молам контактирај ги за да се вклучат сите и да ја исполниме целта! 🙏💪"
-                )
-                brzina_label = "🔔 БРЗИНА 2 (Мобилизација)"
+                skipped_teams.append({'Предлагач': proposer, 'Активни': f"{active}/{total}", 'Фалат': missing})
 
-            messages_data.append({
-                'Предлагач': proposer,
-                'Телеграм': str(tg_name).strip(),
-                'Брзина': brzina_label,
-                'Активни': f"{active}/{total} ({eff_pct:.0f}%)",
-                'Фалат': missing,
-                'Порака': msg
-            })
+        b1_c = sum(1 for m in messages_data if 'БРЗИНА 1' in m['Брзина'])
+        b2_m = sum(1 for m in messages_data if 'Мобилизација' in m['Брзина'])
+        b2_z = sum(1 for m in messages_data if 'Аларм' in m['Брзина'])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("📨 Вкупно Пораки (>2 фалат)", len(messages_data))
+        c2.metric("🌟 Брзина 1 (Топ тимови)", b1_c)
+        c3.metric("🔔 Брзина 2 (Мобилизација)", b2_m)
+        c4.metric("⚠️ Брзина 2 (Аларм 0%)", b2_z)
+
+        with st.expander(f"🏆 Поштедени тимови со 0, 1 или 2 што фалат ({len(skipped_teams)} тимови)", expanded=False):
+            st.dataframe(pd.DataFrame(skipped_teams), use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### 🤖 Автоматско испраќање преку Скрипта (prakac.py)")
+        if messages_data:
+            df_msgs = pd.DataFrame(messages_data)
+            csv_data = df_msgs.to_csv(index=False, encoding='utf-8-sig')
+            st.download_button(
+                label="📥 Преземи CSV фајл за автоматската скрипта (prakac.py)",
+                data=csv_data,
+                file_name=f"telegram_poraki_za_prakanje.csv",
+                mime="text/csv",
+                type="primary",
+                key="btn_dl_auto_csv"
+            )
+            st.caption("Преземи го фајлот и искористи го со твојата локална скрипта за да ги пратиш сите пораки одеднаш.")
         else:
-            skipped_teams.append({'Предлагач': proposer, 'Активни': f"{active}/{total}", 'Фалат': missing})
+            st.info("Нема пораки за испраќање во моментов.")
+        st.markdown("---")
 
-    b1_c = sum(1 for m in messages_data if 'БРЗИНА 1' in m['Брзина'])
-    b2_m = sum(1 for m in messages_data if 'Мобилизација' in m['Брзина'])
-    b2_z = sum(1 for m in messages_data if 'Аларм' in m['Брзина'])
+        st.markdown("#### 📋 Преглед и Копирање на Поединечни Пораки (Удобно за Мобилен и Десктоп):")
+        filter_brzina = st.selectbox("Филтрирај по категорија:", ["Сите пораки", "🌟 БРЗИНА 1 (Топ тим)", "🔔 БРЗИНА 2 (Мобилизација)", "⚠️ БРЗИНА 2 (Аларм 0%)"])
+        filtered_msgs = [m for m in messages_data if filter_brzina == "Сите пораки" or m['Брзина'] == filter_brzina]
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📨 Вкупно Пораки (>2 фалат)", len(messages_data))
-    c2.metric("🌟 Брзина 1 (Топ тимови)", b1_c)
-    c3.metric("🔔 Брзина 2 (Мобилизација)", b2_m)
-    c4.metric("⚠️ Брзина 2 (Аларм 0%)", b2_z)
+        sel_msg_prop = st.selectbox("Избери предлагач за преглед и копирање на неговата порака:", [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs]) if filtered_msgs else None
+        if sel_msg_prop:
+            idx_m = [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs].index(sel_msg_prop)
+            chosen_m = filtered_msgs[idx_m]
+            st.markdown(f"**Праќаме до Телеграм корисник:** `{chosen_m['Телеграм']}`")
+            st.code(chosen_m['Порака'], language="text")
 
-    with st.expander(f"🏆 Поштедени тимови со 0, 1 или 2 што фалат ({len(skipped_teams)} тимови)", expanded=False):
-        st.dataframe(pd.DataFrame(skipped_teams), use_container_width=True)
+    with tg_tabs[1]:
+        st.markdown("#### ✍️ Креирај и испрати твоја сопствена порака")
+        st.info("Овде можеш да напишеш било каков текст (на пр. честитка, повик за состанок, итно известување) и да го пратиш до одредени тимови.")
 
-    st.markdown("#### 📋 Преглед и Копирање на Поединечни Пораки (Удобно за Мобилен и Десктоп):")
-    filter_brzina = st.selectbox("Филтрирај по категорија:", ["Сите пораки", "🌟 БРЗИНА 1 (Топ тим)", "🔔 БРЗИНА 2 (Мобилизација)", "⚠️ БРЗИНА 2 (Аларм 0%)"])
-    filtered_msgs = [m for m in messages_data if filter_brzina == "Сите пораки" or m['Брзина'] == filter_brzina]
+        custom_msg = st.text_area(
+            "Внеси го текстот на пораката:\n💡 Совет: Напиши **{име}** каде што сакаш да стои името на соговорникот (на пр. 'Здраво {име}, те молам...').",
+            height=150
+        )
 
-    sel_msg_prop = st.selectbox("Избери предлагач за преглед и копирање на неговата порака:", [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs]) if filtered_msgs else None
-    if sel_msg_prop:
-        idx_m = [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs].index(sel_msg_prop)
-        chosen_m = filtered_msgs[idx_m]
-        st.markdown(f"**Праќаме до Телеграм корисник:** `{chosen_m['Телеграм']}`")
-        st.code(chosen_m['Порака'], language="text")
+        df_comp = tables_data['_comp']
+        target_mode = st.radio(
+            "Избери до кого да се прати:",
+            ["Сите тимови", "Група IV (≥65%)", "Група III (50-65%)", "Група II (30-50%)", "Група I (≤30%)", "Рачен избор на тимови"],
+            horizontal=True
+        )
 
-# ------------------------------------------------------------------------------
-# ТАБ 5: ПРЕБАРУВАЊЕ НА ЧЛЕНОВИ И АЛИЈАС РЕЧНИК
-# ------------------------------------------------------------------------------
+        selected_proposers = []
+        if target_mode == "Сите тимови":
+            selected_proposers = df_comp['Предлагач'].tolist()
+        elif target_mode.startswith("Група"):
+            gr_code = target_mode.split()[1] # IV, III, II, I
+            selected_proposers = df_comp[df_comp['ГР.'] == gr_code]['Предлагач'].tolist()
+        else:
+            selected_proposers = st.multiselect("Избери предлагачи од листата:", df_comp['Предлагач'].tolist())
+
+        st.write(f"📌 **Вкупно селектирани примачи:** {len(selected_proposers)}")
+
+        if st.button("🔄 Генерирај листа за праќање (CSV)"):
+            if not custom_msg.strip():
+                st.error("Внеси текст на пораката!")
+            elif not selected_proposers:
+                st.error("Избери барем еден тим/предлагач!")
+            else:
+                custom_messages_data = []
+                for prop in selected_proposers:
+                    row = df_comp[df_comp['Предлагач'] == prop].iloc[0]
+                    tg_n = row['Телеграм назив']
+                    if pd.notna(tg_n) and str(tg_n).strip() != '':
+                        first_name = str(prop).split()[0].split('(')[0].strip()
+                        first_name = NAME_MAP_CYR.get(first_name, first_name)
+
+                        final_msg = custom_msg.replace("{име}", first_name).replace("{ime}", first_name)
+
+                        custom_messages_data.append({
+                            'Предлагач': prop,
+                            'Телеграм': str(tg_n).strip(),
+                            'Порака': final_msg
+                        })
+
+                if custom_messages_data:
+                    st.success(f"✅ Успешно генерирани пораки за {len(custom_messages_data)} корисници кои имаат Телеграм.")
+                    df_custom = pd.DataFrame(custom_messages_data)
+                    csv_data = df_custom.to_csv(index=False, encoding='utf-8-sig')
+                    st.download_button(
+                        label="📥 Преземи CSV за скриптата (prakac.py)",
+                        data=csv_data,
+                        file_name=f"telegram_custom_poraki.csv",
+                        mime="text/csv",
+                        type="primary",
+                        key="btn_dl_custom_csv"
+                    )
+                    with st.expander("👁️ Преглед на генерираните пораки", expanded=False):
+                        st.dataframe(df_custom, use_container_width=True)
+                else:
+                    st.warning("Избраните предлагачи немаат внесен Телеграм јузернејм во базата.")
+
 elif menu.startswith("🔍 5."):
     st.markdown('<div class="sub-header">🔍 Брзо Пребарување низ Базата и Алијас Речник</div>', unsafe_allow_html=True)
     q = st.text_input("Внеси име, презиме, предлагач или алијас:")
