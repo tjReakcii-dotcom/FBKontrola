@@ -628,10 +628,44 @@ def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
 
         with c2:
             st.markdown("**🖼️ Вграден ФБ Преглед (Embed Preview):**")
-            encoded_url = urllib.parse.quote(new_url.strip(), safe='')
-            fb_embed_url = f"https://www.facebook.com/plugins/post.php?href={encoded_url}&show_text=true&width=380"
-            components.iframe(fb_embed_url, height=340, scrolling=True)
-            st.caption("Доколку објавата е со 'share/...' краток линк и ФБ бара најава, кликни на синиот линк лево за директна проверка.")
+            import urllib.request
+            import re
+
+            clean_url = new_url.strip()
+
+            # 1. Автоматско отворање на кратки /share/ и fb.watch линкови до вистинскиот линк
+            if "/share/" in clean_url or "fb.watch" in clean_url:
+                try:
+                    req = urllib.request.Request(
+                        clean_url,
+                        headers={"User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"}
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        resolved_url = resp.geturl()
+                        html_content = resp.read().decode("utf-8", errors="ignore")
+                        og_match = re.search(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html_content)
+                        if og_match:
+                            clean_url = og_match.group(1).replace("&amp;", "&")
+                        elif "login" not in resolved_url:
+                            clean_url = resolved_url
+                except Exception:
+                    pass
+
+            # 2. Чистење на мобилни линкови (m.facebook / web.facebook)
+            clean_url = clean_url.replace("://m.facebook.com", "://www.facebook.com").replace("://web.facebook.com", "://www.facebook.com")
+
+            # 3. Приказ на прегледот (различно за видео/reel и за обичен пост)
+            if "/share/" in clean_url:
+                st.info("🔒 Оваа објава е заклучена од Facebook за надворешен преглед (приватен профил/група). Кликни на синиот линк лево за да ја отвориш.")
+            else:
+                encoded_url = urllib.parse.quote(clean_url, safe='')
+                if any(x in clean_url for x in ["/videos/", "/reel/", "/watch"]):
+                    fb_embed_url = f"https://www.facebook.com/plugins/video.php?href={encoded_url}&show_text=true&width=380"
+                else:
+                    fb_embed_url = f"https://www.facebook.com/plugins/post.php?href={encoded_url}&show_text=true&width=380"
+
+                components.iframe(fb_embed_url, height=380, scrolling=True)
+            st.caption("Доколку објавата е од затворена група или профил со ограничен пристап, отвори ја преку директниот линк лево.")
 
 # ==============================================================================
 # 4. ГЛАВЕН ИНТЕРФЕЈС И ВЧИТУВАЊЕ НА БАЗАТА
