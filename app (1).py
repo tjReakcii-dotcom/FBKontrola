@@ -12,7 +12,6 @@ Echoes of Obojeni Program
 Недостапни детали за Facebook линк
 Поправка на SyntaxError за f-string
 Одбиен видео пресек со база
-Ограничения за 4K видеообработка
 Екстракција на имиња во Excel
 Skrivanje na clenovi vo Telegram grupa
 Димитриеска-Кочоска за вториот ребаланс
