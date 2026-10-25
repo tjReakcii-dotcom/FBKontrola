@@ -40,8 +40,6 @@ Conversation with Gemini
 
 Zostooooooooo?
 
-Zdravo! Razumem tvoju frustraciju, ali bez brige – pažljivo sam pregledao slike koje si poslao i dobra vest je da tvoja aplikacija na Streamlit Cloud-u zapravo radi savršeno! Baze se uspešno čuvaju (vidi se da si stigao do verzije 220), ali su te zbunila dva sitna detalja u načinu na koji interfejs funkcioniše.
-
 Evo u čemu je tačno problem i kako da ga rešiš:
 
 1. Zašto se ne pojavljuje dugme za pokretanje preseka? (Slika 57086.jpg)
