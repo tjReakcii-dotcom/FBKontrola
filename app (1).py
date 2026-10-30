@@ -498,6 +498,6 @@ def build_all_tables(df_main):
 
     # 3. Неактивни (0 Лајкови на последните 5 објави)
     last_5_official = official_cols[-5:] if len(official_cols) >= 5 else official_cols
-    inactive_rows = []
-    for _, r in df_main.iterrows():
-        likes_all = sum(1 for c in eval_cols if '✅' in str
+inactive_rows = []
+for _, r in df_main.iterrows():
+    likes_all = sum(1 for c in eval_cols if '✅' in str(r[c]))
