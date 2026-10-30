@@ -651,6 +651,7 @@ def save_formatted_excel(df_main, output_filename):
 # ==============================================================================
 # 3. КОМПОНЕНТА ЗА ПРЕГЛЕД И ВЕРИФИКАЦИЈА НА ФБ ЛИНК ОД ОБЈАВА (PREVIEW)
 # ==============================================================================
+@st.fragment
 def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
     cur_link = links_meta.get("current_link", "https://www.facebook.com/share/18VUNHn6g6/")
     cur_title = links_meta.get("current_title", "Актуелна ФБ Објава")
@@ -739,10 +740,6 @@ if not latest_file:
     st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
     st.stop()
 
-if not latest_file:
-    st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
-    st.stop()
-
 st.sidebar.success(f"""📂 Активна верзија: **{latest_file}**""")
 # Копче за симнување на најновата база во секое време
 with open(latest_file, "rb") as f_dl:
@@ -754,8 +751,12 @@ with open(latest_file, "rb") as f_dl:
         use_container_width=True
     )
 
-xls_active = pd.ExcelFile(latest_file)
-df_main = pd.read_excel(xls_active, sheet_name='Glavna Baza')
+@st.cache_data(ttl=600, max_entries=5)
+def get_cached_dataframe(file_path):
+    xls = pd.ExcelFile(file_path)
+    return pd.read_excel(xls, sheet_name='Glavna Baza')
+
+df_main = get_cached_dataframe(latest_file)
 tables_data = build_all_tables(df_main)
 eval_cols = get_eval_columns(df_main)
 
@@ -845,496 +846,508 @@ if menu.startswith("📊 1."):
 # ТАБ 2: ДЛАБИНСКИ ФУЗИ-ПРЕСЕК (НОВА ОБЈАВА ИЛИ ПО ПОТСЕТНИЦИ)
 # ------------------------------------------------------------------------------
 elif menu.startswith("⚡ 2."):
-    st.markdown('<div class="sub-header">⚡ Автоматски Длабински Фузи-Пресек (Без Ограничувања)</div>', unsafe_allow_html=True)
-    render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab2")
+    @st.fragment
+    def run_tab2():
+        st.markdown('<div class="sub-header">⚡ Автоматски Длабински Фузи-Пресек (Без Ограничувања)</div>', unsafe_allow_html=True)
+        render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab2")
 
-    c_mode1, c_mode2 = st.columns(2)
-    with c_mode1:
-        presek_mode = st.radio(
-            "Избери тип на пресек:",
-            [
-                "🆕 Нова Објава (Создава нова колона во базата)",
-                "🔄 Пресек По Потсетници (Ги додава новите лајкови врз последната колона)"
-            ]
-        )
-    with c_mode2:
-        default_col_name = "Дваесет и четврта Објава (Нов Пресек)" if presek_mode.startswith("🆕") else f"{eval_cols[-1]} - По Потсетници"
-        target_col_name = st.text_input("Назив на колоната за овој пресек:", value=default_col_name)
-        post_link_for_presek = st.text_input("Линк од објавата што ја обработуваме:", value=links_meta.get("current_link", ""))
+        c_mode1, c_mode2 = st.columns(2)
+        with c_mode1:
+            presek_mode = st.radio(
+                "Избери тип на пресек:",
+                [
+                    "🆕 Нова Објава (Создава нова колона во базата)",
+                    "🔄 Пресек По Потсетници (Ги додава новите лајкови врз последната колона)"
+                ]
+            )
+        with c_mode2:
+            default_col_name = "Дваесет и четврта Објава (Нов Пресек)" if presek_mode.startswith("🆕") else f"{eval_cols[-1]} - По Потсетници"
+            target_col_name = st.text_input("Назив на колоната за овој пресек:", value=default_col_name)
+            post_link_for_presek = st.text_input("Линк од објавата што ја обработуваме:", value=links_meta.get("current_link", ""))
 
-    st.markdown("#### 📥 Внеси ги имињата од објавата (преку фајл или со директно копирање):")
-    in_tab1, in_tab2 = st.tabs(["📂 Прикачи Фајл (iminja_od_video.xlsx / .csv / .txt)", "📋 Залепи Список со Имиња (Copy-Paste)"])
+        st.markdown("#### 📥 Внеси ги имињата од објавата (преку фајл или со директно копирање):")
+        in_tab1, in_tab2 = st.tabs(["📂 Прикачи Фајл (iminja_od_video.xlsx / .csv / .txt)", "📋 Залепи Список со Имиња (Copy-Paste)"])
 
-    extracted_names = []
-    with in_tab1:
-        up_file = st.file_uploader("Избери фајл со имиња кои реагирале:", type=['xlsx', 'csv', 'txt'])
-        if up_file is not None:
-            if up_file.name.endswith('.xlsx'):
-                df_v = pd.read_excel(up_file)
-                extracted_names = df_v.iloc[:, 0].dropna().astype(str).str.strip().tolist()
-            elif up_file.name.endswith('.csv'):
-                df_v = pd.read_csv(up_file)
-                extracted_names = df_v.iloc[:, 0].dropna().astype(str).str.strip().tolist()
-            else:
-                txt = up_file.read().decode('utf-8', errors='ignore')
-                extracted_names = [l.strip() for l in txt.splitlines() if l.strip()]
+        extracted_names = []
+        with in_tab1:
+            up_file = st.file_uploader("Избери фајл со имиња кои реагирале:", type=['xlsx', 'csv', 'txt'])
+            if up_file is not None:
+                if up_file.name.endswith('.xlsx'):
+                    df_v = pd.read_excel(up_file)
+                    extracted_names = df_v.iloc[:, 0].dropna().astype(str).str.strip().tolist()
+                elif up_file.name.endswith('.csv'):
+                    df_v = pd.read_csv(up_file)
+                    extracted_names = df_v.iloc[:, 0].dropna().astype(str).str.strip().tolist()
+                else:
+                    txt = up_file.read().decode('utf-8', errors='ignore')
+                    extracted_names = [l.strip() for l in txt.splitlines() if l.strip()]
 
-    with in_tab2:
-        pasted_text = st.text_area("Залепи ги имињата тука (по едно име во секој ред):", height=180)
-        if pasted_text.strip():
-            lines = [l.strip() for l in pasted_text.splitlines() if l.strip()]
-            # Филтрирај системски зборови како Mention / Add friend / mutual friends
-            clean_lines = [l for l in lines if not re.match(r'^(\d+\s+mutual\s+friends|mention|add\s+friend|invite|following|confirm|cancel\s+request)$', l.lower())]
-            extracted_names.extend(clean_lines)
+        with in_tab2:
+            pasted_text = st.text_area("Залепи ги имињата тука (по едно име во секој ред):", height=180)
+            if pasted_text.strip():
+                lines = [l.strip() for l in pasted_text.splitlines() if l.strip()]
+                # Филтрирај системски зборови како Mention / Add friend / mutual friends
+                clean_lines = [l for l in lines if not re.match(r'^(\d+\s+mutual\s+friends|mention|add\s+friend|invite|following|confirm|cancel\s+request)$', l.lower())]
+                extracted_names.extend(clean_lines)
 
-    if extracted_names:
-        st.success(f"✅ Вчитани се вкупно **{len(extracted_names)}** реакции за фузи-споредба!")
+        if extracted_names:
+            st.success(f"✅ Вчитани се вкупно **{len(extracted_names)}** реакции за фузи-споредба!")
 
-        if st.button("🚀 Изврши Длабински Фузи-Пресек и Зачувај Нова Верзија на Базата", type="primary"):
-            norm_video = [(vn, normalize_name(vn), set(normalize_name(vn).split())) for vn in extracted_names]
-            last_col = eval_cols[-1]
-            if presek_mode.startswith("🔄"):
-                matched_indices = set(df_main[df_main[last_col] == '✅'].index)
-            else:
-                matched_indices = set()
+            if st.button("🚀 Изврши Длабински Фузи-Пресек и Зачувај Нова Верзија на Базата", type="primary"):
+                norm_video = [(vn, normalize_name(vn), set(normalize_name(vn).split())) for vn in extracted_names]
+                last_col = eval_cols[-1]
+                if presek_mode.startswith("🔄"):
+                    matched_indices = set(df_main[df_main[last_col] == '✅'].index)
+                else:
+                    matched_indices = set()
 
-            newly_matched = []
-            for idx, row in df_main.iterrows():
-                if idx in matched_indices:
-                    continue
-                raw_m = str(row['Име и презиме / Профил'])
-                raw_p = str(row['Предложувач'])
-                clean_low = raw_m.lower()
-                norm_m = normalize_name(raw_m)
-                tokens_m = set(norm_m.split())
-                matched = False
-                matched_vn = None
+                newly_matched = []
+                for idx, row in df_main.iterrows():
+                    if idx in matched_indices:
+                        continue
+                    raw_m = str(row['Име и презиме / Профил'])
+                    raw_p = str(row['Предложувач'])
+                    clean_low = raw_m.lower()
+                    norm_m = normalize_name(raw_m)
+                    tokens_m = set(norm_m.split())
+                    matched = False
+                    matched_vn = None
 
-                # 1. Проверка во Алијас Речник
-                for k, v_list in ALIAS_MAP.items():
-                    if k in clean_low:
-                        for vt in v_list:
-                            for vn, n_vn, _ in norm_video:
-                                if vt in vn.lower() or normalize_name(vt) in n_vn:
-                                    matched = True; matched_vn = vn; break
-                            if matched:
-                                break
-                    if matched:
-                        break
+                    # 1. Проверка во Алијас Речник
+                    for k, v_list in ALIAS_MAP.items():
+                        if k in clean_low:
+                            for vt in v_list:
+                                for vn, n_vn, _ in norm_video:
+                                    if vt in vn.lower() or normalize_name(vt) in n_vn:
+                                        matched = True; matched_vn = vn; break
+                                if matched:
+                                    break
+                        if matched:
+                            break
 
-                # 2. Специјална проверка за двоен профил кај Angela dr mit
-                if not matched and 'angela dr mit' in raw_p.lower() and ('профил 2' in clean_low or 'орхидеја' in clean_low):
-                    for vn, _, _ in norm_video:
-                        if 'angela josifoska' in vn.lower() or 'ani mit' in vn.lower():
-                            matched = True; matched_vn = vn; break
-
-                # 3. Точно или подмножество на токени
-                if not matched and norm_m:
-                    for vn, n_vn, t_vn in norm_video:
-                        if norm_m == n_vn or (len(tokens_m) >= 2 and len(t_vn) >= 2 and (tokens_m == t_vn or tokens_m.issubset(t_vn) or t_vn.issubset(tokens_m))):
-                            matched = True; matched_vn = vn; break
-
-                # 4. Фузи совпаѓање со SequenceMatcher >= 0.83
-                if not matched and len(tokens_m) >= 2:
-                    mlist = list(tokens_m)
-                    for vn, n_vn, t_vn in norm_video:
-                        vlist = list(t_vn)
-                        if len(vlist) >= 2:
-                            sim_c = sum(1 for mt in mlist if len(mt) >= 3 and max([SequenceMatcher(None, mt, vt).ratio() for vt in vlist if len(vt) >= 3] + [0]) >= 0.83)
-                            if sim_c >= 2:
+                    # 2. Специјална проверка за двоен профил кај Angela dr mit
+                    if not matched and 'angela dr mit' in raw_p.lower() and ('профил 2' in clean_low or 'орхидеја' in clean_low):
+                        for vn, _, _ in norm_video:
+                            if 'angela josifoska' in vn.lower() or 'ani mit' in vn.lower():
                                 matched = True; matched_vn = vn; break
 
-                if matched:
-                    matched_indices.add(idx)
-                    newly_matched.append({
-                        'Р.б.': row['Р.б.'],
-                        'Член во База': raw_m,
-                        'Предлагач': raw_p,
-                        'Совпаднато со (Видео)': matched_vn
+                    # 3. Точно или подмножество на токени
+                    if not matched and norm_m:
+                        for vn, n_vn, t_vn in norm_video:
+                            if norm_m == n_vn or (len(tokens_m) >= 2 and len(t_vn) >= 2 and (tokens_m == t_vn or tokens_m.issubset(t_vn) or t_vn.issubset(tokens_m))):
+                                matched = True; matched_vn = vn; break
+
+                    # 4. Фузи совпаѓање со SequenceMatcher >= 0.83
+                    if not matched and len(tokens_m) >= 2:
+                        mlist = list(tokens_m)
+                        for vn, n_vn, t_vn in norm_video:
+                            vlist = list(t_vn)
+                            if len(vlist) >= 2:
+                                sim_c = sum(1 for mt in mlist if len(mt) >= 3 and max([SequenceMatcher(None, mt, vt).ratio() for vt in vlist if len(vt) >= 3] + [0]) >= 0.83)
+                                if sim_c >= 2:
+                                    matched = True; matched_vn = vn; break
+
+                    if matched:
+                        matched_indices.add(idx)
+                        newly_matched.append({
+                            'Р.б.': row['Р.б.'],
+                            'Член во База': raw_m,
+                            'Предлагач': raw_p,
+                            'Совпаднато со (Видео)': matched_vn
+                        })
+
+                if presek_mode.startswith("🔄"):
+                    df_main.rename(columns={last_col: target_col_name}, inplace=True)
+                    df_main[target_col_name] = ['✅' if i in matched_indices else '❌' for i in df_main.index]
+                else:
+                    df_main[target_col_name] = ['✅' if i in matched_indices else '❌' for i in df_main.index]
+
+                next_file = get_next_version_filename(latest_file)
+                save_formatted_excel(df_main, next_file)
+
+                # Зачувај го и линкот во историјата
+                if post_link_for_presek.strip():
+                    links_meta["current_link"] = post_link_for_presek.strip()
+                    links_meta.setdefault("history", []).append({
+                        "post_col": target_col_name,
+                        "url": post_link_for_presek.strip(),
+                        "title": f"Пресек ({len(extracted_names)} реакции)",
+                        "time": datetime.now().strftime("%Y-%m-%d %H:%M")
                     })
+                    save_links_meta(links_meta)
 
-            if presek_mode.startswith("🔄"):
-                df_main.rename(columns={last_col: target_col_name}, inplace=True)
-                df_main[target_col_name] = ['✅' if i in matched_indices else '❌' for i in df_main.index]
-            else:
-                df_main[target_col_name] = ['✅' if i in matched_indices else '❌' for i in df_main.index]
+                st.balloons()
+                st.success(f"🎉 Успешно завршен пресек! Зачувана е новата верзија: **{next_file}** со вкупно **{len(matched_indices)}** активни членови (`✅`) од {len(df_main)} ({len(matched_indices)/len(df_main)*100:.1f}%)!")
 
-            next_file = get_next_version_filename(latest_file)
-            save_formatted_excel(df_main, next_file)
+                with open(next_file, "rb") as f_new:
+                    st.download_button(
+                        label=f"📥 Преземи ја веднаш новата база: {next_file}",
+                        data=f_new,
+                        file_name=next_file,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary"
+                    )
 
-            # Зачувај го и линкот во историјата
-            if post_link_for_presek.strip():
-                links_meta["current_link"] = post_link_for_presek.strip()
-                links_meta.setdefault("history", []).append({
-                    "post_col": target_col_name,
-                    "url": post_link_for_presek.strip(),
-                    "title": f"Пресек ({len(extracted_names)} реакции)",
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M")
-                })
-                save_links_meta(links_meta)
-
-            st.balloons()
-            st.success(f"🎉 Успешно завршен пресек! Зачувана е новата верзија: **{next_file}** со вкупно **{len(matched_indices)}** активни членови (`✅`) од {len(df_main)} ({len(matched_indices)/len(df_main)*100:.1f}%)!")
-
-            with open(next_file, "rb") as f_new:
-                st.download_button(
-                    label=f"📥 Преземи ја веднаш новата база: {next_file}",
-                    data=f_new,
-                    file_name=next_file,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary"
-                )
-
-            if newly_matched:
-                st.markdown(f"#### 🔍 Преглед на новооткриените {len(newly_matched)} совпаѓања во овој пресек:")
-                st.dataframe(pd.DataFrame(newly_matched), use_container_width=True)
+                if newly_matched:
+                    st.markdown(f"#### 🔍 Преглед на новооткриените {len(newly_matched)} совпаѓања во овој пресек:")
+                    st.dataframe(pd.DataFrame(newly_matched), use_container_width=True)
+    run_tab2()
 
 # ------------------------------------------------------------------------------
 # ТАБ 3: УПРАВУВАЊЕ СО ТИМОВИ И ЧЛЕНОВИ (ДОДАЈ / ЗАМЕНИ / ИЗБРИШИ)
 # ------------------------------------------------------------------------------
 elif menu.startswith("👥 3."):
-    st.markdown('<div class="sub-header">👥 Интерактивно Управување со Тимови, Предлагачи и Членови</div>', unsafe_allow_html=True)
-    st.caption("Секоја промена автоматски ги пресметува сите 7 листови, прави ренумерирање на Р.б. и создава нова верзија на Excel фајлот.")
+    @st.fragment
+    def run_tab3():
+        st.markdown('<div class="sub-header">👥 Интерактивно Управување со Тимови, Предлагачи и Членови</div>', unsafe_allow_html=True)
+        st.caption("Секоја промена автоматски ги пресметува сите 7 листови, прави ренумерирање на Р.б. и создава нова верзија на Excel фајлот.")
 
-    crud_tabs = st.tabs([
-        "➕ 1. Додај Член во Тим",
-        "🆕 2. Додај Нов Предлагач (Тим)",
-        "🔄 3. Замени Член / Промени Статус (✅/❌)",
-        "🗑️ 4. Избриши Член од Базата"
-    ])
+        crud_tabs = st.tabs([
+            "➕ 1. Додај Член во Тим",
+            "🆕 2. Додај Нов Предлагач (Тим)",
+            "🔄 3. Замени Член / Промени Статус (✅/❌)",
+            "🗑️ 4. Избриши Член од Базата"
+        ])
 
-    proposers = sorted(df_main['Предложувач'].dropna().unique().tolist())
-    latest_col = eval_cols[-1]
+        proposers = sorted(df_main['Предложувач'].dropna().unique().tolist())
+        latest_col = eval_cols[-1]
 
-    # 1. Додај Член во постоечки тим
-    with crud_tabs[0]:
-        with st.form("form_add_member"):
-            sel_p = st.selectbox("Избери Предлагач (Тим):", proposers)
-            new_m_names = st.text_area("Внеси име на нов член (или повеќе членови, по еден во секој ред):")
-            already_clicked = st.checkbox(f"Означи ги со ✅ како веќе активни на тековната објава ({latest_col})", value=False)
-            btn_add_m = st.form_submit_button("➕ Додај во Тимот и Зачувај Нова База")
+        # 1. Додај Член во постоечки тим
+        with crud_tabs[0]:
+            with st.form("form_add_member"):
+                sel_p = st.selectbox("Избери Предлагач (Тим):", proposers)
+                new_m_names = st.text_area("Внеси име на нов член (или повеќе членови, по еден во секој ред):")
+                already_clicked = st.checkbox(f"Означи ги со ✅ како веќе активни на тековната објава ({latest_col})", value=False)
+                btn_add_m = st.form_submit_button("➕ Додај во Тимот и Зачувај Нова База")
 
-            if btn_add_m and new_m_names.strip():
-                names_to_add = [n.strip() for n in new_m_names.splitlines() if n.strip()]
-                sample = df_main[df_main['Предложувач'] == sel_p].iloc[0]
-                new_rows = []
-                for nm in names_to_add:
-                    r = {c: '❌' for c in df_main.columns}
-                    r['Р.б.'] = len(df_main) + len(new_rows) + 1
-                    r['Име и презиме / Профил'] = nm
-                    r['Предложувач'] = sel_p
-                    for meta_c in ['Телефонски број (Telegram)', 'Одговорен контролор', 'Телефонски број', 'Име на Телеграм (За пребарување)']:
-                        if meta_c in df_main.columns:
-                            r[meta_c] = sample[meta_c]
-                    if already_clicked:
-                        r[latest_col] = '✅'
-                    new_rows.append(r)
+                if btn_add_m and new_m_names.strip():
+                    names_to_add = [n.strip() for n in new_m_names.splitlines() if n.strip()]
+                    sample = df_main[df_main['Предложувач'] == sel_p].iloc[0]
+                    new_rows = []
+                    for nm in names_to_add:
+                        r = {c: '❌' for c in df_main.columns}
+                        r['Р.б.'] = len(df_main) + len(new_rows) + 1
+                        r['Име и презиме / Профил'] = nm
+                        r['Предложувач'] = sel_p
+                        for meta_c in ['Телефонски број (Telegram)', 'Одговорен контролор', 'Телефонски број', 'Име на Телеграм (За пребарување)']:
+                            if meta_c in df_main.columns:
+                                r[meta_c] = sample[meta_c]
+                        if already_clicked:
+                            r[latest_col] = '✅'
+                        new_rows.append(r)
 
-                df_updated = pd.concat([df_main, pd.DataFrame(new_rows)], ignore_index=True)
-                df_updated['Р.б.'] = range(1, len(df_updated) + 1)
-                next_file = get_next_version_filename(latest_file)
-                save_formatted_excel(df_updated, next_file)
-                st.success(f"✅ Додадени се {len(names_to_add)} членови кај **{sel_p}**! Зачувано во **{next_file}**.")
-                st.rerun()
+                    df_updated = pd.concat([df_main, pd.DataFrame(new_rows)], ignore_index=True)
+                    df_updated['Р.б.'] = range(1, len(df_updated) + 1)
+                    next_file = get_next_version_filename(latest_file)
+                    save_formatted_excel(df_updated, next_file)
+                    st.success(f"✅ Додадени се {len(names_to_add)} членови кај **{sel_p}**! Зачувано во **{next_file}**.")
+                    st.rerun()
 
-    # 2. Додај Нов Предлагач (Нов Тим)
-    with crud_tabs[1]:
-        with st.form("form_add_proposer"):
-            new_prop_name = st.text_input("Име и презиме на новиот Предлагач (пр. Damjan Blazevski):")
-            new_prop_tg = st.text_input("Име на Телеграм (За пребарување):")
-            prop_clicks_too = st.checkbox("Предлагачот и самиот клика (додај ред '[Име] - Предложувач')", value=True)
-            team_list_raw = st.text_area("Внеси ги членовите на неговиот тим (по еден во секој ред):")
-            btn_add_team = st.form_submit_button("🆕 Креирај Нов Тим и Зачувај База")
+        # 2. Додај Нов Предлагач (Нов Тим)
+        with crud_tabs[1]:
+            with st.form("form_add_proposer"):
+                new_prop_name = st.text_input("Име и презиме на новиот Предлагач (пр. Damjan Blazevski):")
+                new_prop_tg = st.text_input("Име на Телеграм (За пребарување):")
+                prop_clicks_too = st.checkbox("Предлагачот и самиот клика (додај ред '[Име] - Предложувач')", value=True)
+                team_list_raw = st.text_area("Внеси ги членовите на неговиот тим (по еден во секој ред):")
+                btn_add_team = st.form_submit_button("🆕 Креирај Нов Тим и Зачувај База")
 
-            if btn_add_team and new_prop_name.strip():
-                p_clean = new_prop_name.strip()
-                tg_clean = new_prop_tg.strip() if new_prop_tg.strip() else p_clean
-                members_list = [m.strip() for m in team_list_raw.splitlines() if m.strip()]
-                if prop_clicks_too:
-                    members_list.insert(0, f"[{p_clean}] - Предложувач")
+                if btn_add_team and new_prop_name.strip():
+                    p_clean = new_prop_name.strip()
+                    tg_clean = new_prop_tg.strip() if new_prop_tg.strip() else p_clean
+                    members_list = [m.strip() for m in team_list_raw.splitlines() if m.strip()]
+                    if prop_clicks_too:
+                        members_list.insert(0, f"[{p_clean}] - Предложувач")
 
-                new_rows = []
-                for nm in members_list:
-                    r = {c: '❌' for c in df_main.columns}
-                    r['Р.б.'] = len(df_main) + len(new_rows) + 1
-                    r['Име и презиме / Профил'] = nm
-                    r['Предложувач'] = p_clean
-                    r['Одговорен контролор'] = "Тони Јаревски"
-                    r['Име на Телеграм (За пребарување)'] = tg_clean
-                    new_rows.append(r)
+                    new_rows = []
+                    for nm in members_list:
+                        r = {c: '❌' for c in df_main.columns}
+                        r['Р.б.'] = len(df_main) + len(new_rows) + 1
+                        r['Име и презиме / Профил'] = nm
+                        r['Предложувач'] = p_clean
+                        r['Одговорен контролор'] = "Тони Јаревски"
+                        r['Име на Телеграм (За пребарување)'] = tg_clean
+                        new_rows.append(r)
 
-                df_updated = pd.concat([df_main, pd.DataFrame(new_rows)], ignore_index=True)
-                df_updated['Р.б.'] = range(1, len(df_updated) + 1)
-                next_file = get_next_version_filename(latest_file)
-                save_formatted_excel(df_updated, next_file)
-                st.success(f"🎉 Креиран е нов тим на **{p_clean}** со {len(new_rows)} члена во **{next_file}**!")
-                st.rerun()
+                    df_updated = pd.concat([df_main, pd.DataFrame(new_rows)], ignore_index=True)
+                    df_updated['Р.б.'] = range(1, len(df_updated) + 1)
+                    next_file = get_next_version_filename(latest_file)
+                    save_formatted_excel(df_updated, next_file)
+                    st.success(f"🎉 Креиран е нов тим на **{p_clean}** со {len(new_rows)} члена во **{next_file}**!")
+                    st.rerun()
 
-    # 3. Замени Член или Промени Статус (✅/❌)
-    with crud_tabs[2]:
-        sel_p_edit = st.selectbox("Избери Тим за измена:", proposers, key="edit_prop_sel")
-        team_sub = df_main[df_main['Предложувач'] == sel_p_edit]
-        st.dataframe(team_sub[['Р.б.', 'Име и презиме / Профил', latest_col]], use_container_width=True)
+        # 3. Замени Член или Промени Статус (✅/❌)
+        with crud_tabs[2]:
+            sel_p_edit = st.selectbox("Избери Тим за измена:", proposers, key="edit_prop_sel")
+            team_sub = df_main[df_main['Предложувач'] == sel_p_edit]
+            st.dataframe(team_sub[['Р.б.', 'Име и презиме / Профил', latest_col]], use_container_width=True)
 
-        member_options = {f"[{r['Р.б.']}] {r['Име и презиме / Профил']} ({r[latest_col]})": idx for idx, r in team_sub.iterrows()}
-        chosen_label = st.selectbox("Избери член од тимот:", list(member_options.keys()))
-        chosen_idx = member_options[chosen_label]
+            member_options = {f"[{r['Р.б.']}] {r['Име и презиме / Профил']} ({r[latest_col]})": idx for idx, r in team_sub.iterrows()}
+            chosen_label = st.selectbox("Избери член од тимот:", list(member_options.keys()))
+            chosen_idx = member_options[chosen_label]
 
-        with st.form("form_edit_member"):
-            current_name_val = str(df_main.loc[chosen_idx, 'Име и презиме / Профил'])
-            current_status_val = str(df_main.loc[chosen_idx, latest_col])
-            updated_name = st.text_input("Ново име / Профил (остави исто ако менуваш само статус):", value=current_name_val)
-            updated_status = st.selectbox(f"Статус за '{latest_col}':", ['✅', '❌'], index=0 if '✅' in current_status_val else 1)
-            reset_history = st.checkbox("Ако ова е целосна замена со нов човек, ресетирај ги старите лајкови на ❌", value=False)
-            btn_save_edit = st.form_submit_button("💾 Зачувај Измена")
+            with st.form("form_edit_member"):
+                current_name_val = str(df_main.loc[chosen_idx, 'Име и презиме / Профил'])
+                current_status_val = str(df_main.loc[chosen_idx, latest_col])
+                updated_name = st.text_input("Ново име / Профил (остави исто ако менуваш само статус):", value=current_name_val)
+                updated_status = st.selectbox(f"Статус за '{latest_col}':", ['✅', '❌'], index=0 if '✅' in current_status_val else 1)
+                reset_history = st.checkbox("Ако ова е целосна замена со нов човек, ресетирај ги старите лајкови на ❌", value=False)
+                btn_save_edit = st.form_submit_button("💾 Зачувај Измена")
 
-            if btn_save_edit:
-                df_updated = df_main.copy()
-                if reset_history:
-                    for c in eval_cols:
-                        df_updated.loc[chosen_idx, c] = '❌'
-                df_updated.loc[chosen_idx, 'Име и презиме / Профил'] = updated_name.strip()
-                df_updated.loc[chosen_idx, latest_col] = updated_status
-                next_file = get_next_version_filename(latest_file)
-                save_formatted_excel(df_updated, next_file)
-                st.success(f"✅ Успешно ажуриран член во **{next_file}**!")
-                st.rerun()
+                if btn_save_edit:
+                    df_updated = df_main.copy()
+                    if reset_history:
+                        for c in eval_cols:
+                            df_updated.loc[chosen_idx, c] = '❌'
+                    df_updated.loc[chosen_idx, 'Име и презиме / Профил'] = updated_name.strip()
+                    df_updated.loc[chosen_idx, latest_col] = updated_status
+                    next_file = get_next_version_filename(latest_file)
+                    save_formatted_excel(df_updated, next_file)
+                    st.success(f"✅ Успешно ажуриран член во **{next_file}**!")
+                    st.rerun()
 
-    # 4. Избриши Член од Базата
-    with crud_tabs[3]:
-        sel_p_del = st.selectbox("Избери Тим од кој се брише:", proposers, key="del_prop_sel")
-        team_sub_del = df_main[df_main['Предложувач'] == sel_p_del]
-        del_options = {f"[{r['Р.б.']}] {r['Име и презиме / Профил']}": idx for idx, r in team_sub_del.iterrows()}
-        chosen_to_delete = st.multiselect("Избери еден или повеќе членови за бришење:", list(del_options.keys()))
+        # 4. Избриши Член од Базата
+        with crud_tabs[3]:
+            sel_p_del = st.selectbox("Избери Тим од кој се брише:", proposers, key="del_prop_sel")
+            team_sub_del = df_main[df_main['Предложувач'] == sel_p_del]
+            del_options = {f"[{r['Р.б.']}] {r['Име и презиме / Профил']}": idx for idx, r in team_sub_del.iterrows()}
+            chosen_to_delete = st.multiselect("Избери еден или повеќе членови за бришење:", list(del_options.keys()))
 
-        if st.button("🗑️ Избриши ги избраните членови и Зачувај База", type="primary"):
-            if chosen_to_delete:
-                idxs = [del_options[k] for k in chosen_to_delete]
-                df_updated = df_main.drop(index=idxs).reset_index(drop=True)
-                df_updated['Р.б.'] = range(1, len(df_updated) + 1)
-                next_file = get_next_version_filename(latest_file)
-                save_formatted_excel(df_updated, next_file)
-                st.success(f"✅ Избришани се {len(idxs)} членови! Зачувана е нова верзија: **{next_file}**.")
-                st.rerun()
-            else:
-                st.warning("Прво избери барем еден член за бришење.")
+            if st.button("🗑️ Избриши ги избраните членови и Зачувај База", type="primary"):
+                if chosen_to_delete:
+                    idxs = [del_options[k] for k in chosen_to_delete]
+                    df_updated = df_main.drop(index=idxs).reset_index(drop=True)
+                    df_updated['Р.б.'] = range(1, len(df_updated) + 1)
+                    next_file = get_next_version_filename(latest_file)
+                    save_formatted_excel(df_updated, next_file)
+                    st.success(f"✅ Избришани се {len(idxs)} членови! Зачувана е нова верзија: **{next_file}**.")
+                    st.rerun()
+                else:
+                    st.warning("Прво избери барем еден член за бришење.")
+    run_tab3()
 
 # ------------------------------------------------------------------------------
 # ТАБ 4: ТЕЛЕГРАМ ПОТСЕТНИЦИ ВО ДВЕ БРЗИНИ + ПРЕГЛЕД НА ЛИНК + PRAKAC.PY
 # ------------------------------------------------------------------------------
 elif menu.startswith("📨 4."):
-    st.markdown('<div class="sub-header">📨 Телеграм Потсетници и Масовни Пораки</div>', unsafe_allow_html=True)
+    @st.fragment
+    def run_tab4():
+        st.markdown('<div class="sub-header">📨 Телеграм Потсетници и Масовни Пораки</div>', unsafe_allow_html=True)
 
-    tg_tabs = st.tabs(["🤖 Автоматски Потсетници (За најнова објава)", "✍️ Прати Сопствена Порака (Custom)"])
+        tg_tabs = st.tabs(["🤖 Автоматски Потсетници (За најнова објава)", "✍️ Прати Сопствена Порака (Custom)"])
 
-    with tg_tabs[0]:
-        st.info("Задолжителна контрола: Провери го линкот во картичката подолу пред да ги пуштиш пораките!")
-        render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab4")
+        with tg_tabs[0]:
+            st.info("Задолжителна контрола: Провери го линкот во картичката подолу пред да ги пуштиш пораките!")
+            render_post_link_preview_box(links_meta, eval_cols, key_suffix="tab4")
 
-        link_objava = links_meta.get("current_link", "https://www.facebook.com/share/18VUNHn6g6/")
-        col_new = eval_cols[-1]
-        last_5_cols = eval_cols[-5:] if len(eval_cols) >= 5 else eval_cols
+            link_objava = links_meta.get("current_link", "https://www.facebook.com/share/18VUNHn6g6/")
+            col_new = eval_cols[-1]
+            last_5_cols = eval_cols[-5:] if len(eval_cols) >= 5 else eval_cols
 
-        st.markdown("#### 📝 Уредување на шаблоните за пораки")
-        with st.expander("👁️ Отвори за да ги измениш текстовите пред да се генерираат", expanded=False):
-            t1_default = "Здраво {име}! 👋\n\n🌟 Браво за тимот, одлично газите на најновата објава! 📌\nМоментално сте на високи: ✅ {активни} од {вкупно} активни членови ({процент}%).\n\n🏁 На чекор сме до 100% — пушти им само уште еден брз потсетник на преостанатите {фалат}:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nДа ве заокружиме на максимум! Ти благодарам! 🚀💪"
-            t2_default = "Здраво {име}! 👋\n\n🔔 Важен потсетник за најновата објава 📌\nОд твојот тим моментално сè уште сме на 0 од {вкупно} реакции.\n\n⚠️ Те молам кликни ти прв/а и веднаш препрати го линкот до твојата група за да се приклучите:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nАјде да го раздвижиме тимот и да фатиме чекор со мрежата! 🙏🚀"
-            t3_default = "Здраво {име}! 👋\n\n🔔 Потсетник за мобилизација на најновата објава 📌\nОд твојот тим досега се вклучени само: ✅ {активни} од {вкупно} членови ({процент}%).\n\n⚠️ Ни фалат реакции од следните {фалат} членови за да го кренеме просекот:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nТе молам контактирај ги за да се вклучат сите и да ја исполниме целта! 🙏💪"
-            
-            tmpl_1 = st.text_area("Шаблон за Брзина 1 (Топ тим):", value=t1_default, height=150)
-            tmpl_2 = st.text_area("Шаблон за Брзина 2 (Аларм 0%):", value=t2_default, height=150)
-            tmpl_3 = st.text_area("Шаблон за Брзина 2 (Мобилизација):", value=t3_default, height=150)
-            st.caption("Достапни тагови кои системот сам ги пополнува: `{име}`, `{активни}`, `{вкупно}`, `{процент}`, `{фалат}`, `{фалат_листа}`, `{забелешка}`, `{линк}`")
+            st.markdown("#### 📝 Уредување на шаблоните за пораки")
+            with st.expander("👁️ Отвори за да ги измениш текстовите пред да се генерираат", expanded=False):
+                t1_default = "Здраво {име}! 👋\n\n🌟 Браво за тимот, одлично газите на најновата објава! 📌\nМоментално сте на високи: ✅ {активни} од {вкупно} активни членови ({процент}%).\n\n🏁 На чекор сме до 100% — пушти им само уште еден брз потсетник на преостанатите {фалат}:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nДа ве заокружиме на максимум! Ти благодарам! 🚀💪"
+                t2_default = "Здраво {име}! 👋\n\n🔔 Важен потсетник за најновата објава 📌\nОд твојот тим моментално сè уште сме на 0 од {вкупно} реакции.\n\n⚠️ Те молам кликни ти прв/а и веднаш препрати го линкот до твојата група за да се приклучите:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nАјде да го раздвижиме тимот и да фатиме чекор со мрежата! 🙏🚀"
+                t3_default = "Здраво {име}! 👋\n\n🔔 Потсетник за мобилизација на најновата објава 📌\nОд твојот тим досега се вклучени само: ✅ {активни} од {вкупно} членови ({процент}%).\n\n⚠️ Ни фалат реакции од следните {фалат} членови за да го кренеме просекот:\n{фалат_листа}\n{забелешка}\n🔗 Линк до објавата:\n{линк}\n\nТе молам контактирај ги за да се вклучат сите и да ја исполниме целта! 🙏💪"
+                
+                tmpl_1 = st.text_area("Шаблон за Брзина 1 (Топ тим):", value=t1_default, height=150)
+                tmpl_2 = st.text_area("Шаблон за Брзина 2 (Аларм 0%):", value=t2_default, height=150)
+                tmpl_3 = st.text_area("Шаблон за Брзина 2 (Мобилизација):", value=t3_default, height=150)
+                st.caption("Достапни тагови кои системот сам ги пополнува: `{име}`, `{активни}`, `{вкупно}`, `{процент}`, `{фалат}`, `{фалат_листа}`, `{забелешка}`, `{линк}`")
 
-        messages_data = []
-        skipped_teams = []
+            messages_data = []
+            skipped_teams = []
 
-        for proposer, group in df_main.groupby('Предложувач'):
-            total = len(group)
-            active = len(group[group[col_new] == '✅'])
-            missing = total - active
-            eff_pct = (active / total * 100) if total > 0 else 0
-            tg_name = group['Име на Телеграм (За пребарување)'].iloc[0]
+            for proposer, group in df_main.groupby('Предложувач'):
+                total = len(group)
+                active = len(group[group[col_new] == '✅'])
+                missing = total - active
+                eff_pct = (active / total * 100) if total > 0 else 0
+                tg_name = group['Име на Телеграм (За пребарување)'].iloc[0]
 
-            if missing > 2 and pd.notna(tg_name) and str(tg_name).strip() != '':
-                missing_df = group[group[col_new] != '✅']
-                missing_formatted = []
-                chronic_zero_count = 0
+                if missing > 2 and pd.notna(tg_name) and str(tg_name).strip() != '':
+                    missing_df = group[group[col_new] != '✅']
+                    missing_formatted = []
+                    chronic_zero_count = 0
 
-                for _, row_m in missing_df.iterrows():
-                    n = row_m['Име и презиме / Профил']
-                    cl = str(n).replace('[', '').replace(']', '').replace(' - Предложувач', '').replace(' - Predlozuvac', '').strip()
-                    cl = cl.split(' (http')[0].split(' http')[0].strip()
-                    likes_last_5 = sum(1 for c in last_5_cols if '✅' in str(row_m[c]))
-                    if likes_last_5 == 0:
-                        missing_formatted.append(f"  ▫️ {cl} ❗(0 реакции подолго време)")
-                        chronic_zero_count += 1
+                    for _, row_m in missing_df.iterrows():
+                        n = row_m['Име и презиме / Профил']
+                        cl = str(n).replace('[', '').replace(']', '').replace(' - Предложувач', '').replace(' - Predlozuvac', '').strip()
+                        cl = cl.split(' (http')[0].split(' http')[0].strip()
+                        likes_last_5 = sum(1 for c in last_5_cols if '✅' in str(row_m[c]))
+                        if likes_last_5 == 0:
+                            missing_formatted.append(f"  ▫️ {cl} ❗(0 реакции подолго време)")
+                            chronic_zero_count += 1
+                        else:
+                            missing_formatted.append(f"  ▫️ {cl}")
+
+                    first_name = str(proposer).split()[0].split('(')[0].strip()
+                    first_name = NAME_MAP_CYR.get(first_name, first_name)
+                    miss_str = "\n".join(missing_formatted)
+                    zero_note = "\n💡 Забелешка: Оние што се означени со ❗ немаат реакција на последните 5 објави — провери дали кликаат од друг профил или кажи со кого да ги замениме.\n" if chronic_zero_count > 0 else ""
+
+                    mapping = {
+                        "{име}": first_name,
+                        "{активни}": str(active),
+                        "{вкупно}": str(total),
+                        "{процент}": f"{eff_pct:.0f}",
+                        "{фалат}": str(missing),
+                        "{фалат_листа}": miss_str,
+                        "{забелешка}": zero_note,
+                        "{линк}": link_objava
+                    }
+
+                    if eff_pct >= 60.0 or missing <= 4:
+                        raw_msg = tmpl_1
+                        brzina_label = "🌟 БРЗИНА 1 (Топ тим)"
+                    elif active == 0:
+                        raw_msg = tmpl_2
+                        brzina_label = "⚠️ БРЗИНА 2 (Аларм 0%)"
                     else:
-                        missing_formatted.append(f"  ▫️ {cl}")
+                        raw_msg = tmpl_3
+                        brzina_label = "🔔 БРЗИНА 2 (Мобилизација)"
 
-                first_name = str(proposer).split()[0].split('(')[0].strip()
-                first_name = NAME_MAP_CYR.get(first_name, first_name)
-                miss_str = "\n".join(missing_formatted)
-                zero_note = "\n💡 Забелешка: Оние што се означени со ❗ немаат реакција на последните 5 објави — провери дали кликаат од друг профил или кажи со кого да ги замениме.\n" if chronic_zero_count > 0 else ""
+                    for k, v in mapping.items():
+                        raw_msg = raw_msg.replace(k, v)
+                    msg = raw_msg
 
-                mapping = {
-                    "{име}": first_name,
-                    "{активни}": str(active),
-                    "{вкупно}": str(total),
-                    "{процент}": f"{eff_pct:.0f}",
-                    "{фалат}": str(missing),
-                    "{фалат_листа}": miss_str,
-                    "{забелешка}": zero_note,
-                    "{линк}": link_objava
-                }
-
-                if eff_pct >= 60.0 or missing <= 4:
-                    raw_msg = tmpl_1
-                    brzina_label = "🌟 БРЗИНА 1 (Топ тим)"
-                elif active == 0:
-                    raw_msg = tmpl_2
-                    brzina_label = "⚠️ БРЗИНА 2 (Аларм 0%)"
+                    messages_data.append({
+                        'Предлагач': proposer,
+                        'Телеграм': str(tg_name).strip(),
+                        'Брзина': brzina_label,
+                        'Активни': f"{active}/{total} ({eff_pct:.0f}%)",
+                        'Фалат': missing,
+                        'Порака': msg
+                    })
                 else:
-                    raw_msg = tmpl_3
-                    brzina_label = "🔔 БРЗИНА 2 (Мобилизација)"
+                    skipped_teams.append({'Предлагач': proposer, 'Активни': f"{active}/{total}", 'Фалат': missing})
 
-                for k, v in mapping.items():
-                    raw_msg = raw_msg.replace(k, v)
-                msg = raw_msg
+            b1_c = sum(1 for m in messages_data if 'БРЗИНА 1' in m['Брзина'])
+            b2_m = sum(1 for m in messages_data if 'Мобилизација' in m['Брзина'])
+            b2_z = sum(1 for m in messages_data if 'Аларм' in m['Брзина'])
 
-                messages_data.append({
-                    'Предлагач': proposer,
-                    'Телеграм': str(tg_name).strip(),
-                    'Брзина': brzina_label,
-                    'Активни': f"{active}/{total} ({eff_pct:.0f}%)",
-                    'Фалат': missing,
-                    'Порака': msg
-                })
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("📨 Вкупно Пораки (>2 фалат)", len(messages_data))
+            c2.metric("🌟 Брзина 1 (Топ тимови)", b1_c)
+            c3.metric("🔔 Брзина 2 (Мобилизација)", b2_m)
+            c4.metric("⚠️ Брзина 2 (Аларм 0%)", b2_z)
+
+            with st.expander(f"🏆 Поштедени тимови со 0, 1 или 2 што фалат ({len(skipped_teams)} тимови)", expanded=False):
+                st.dataframe(pd.DataFrame(skipped_teams), use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("#### 🤖 Автоматско испраќање преку Скрипта (prakac.py)")
+            if messages_data:
+                df_msgs = pd.DataFrame(messages_data)
+                csv_data = df_msgs.to_csv(index=False, encoding='utf-8-sig')
+                st.download_button(
+                    label="📥 Преземи CSV фајл за автоматската скрипта (prakac.py)",
+                    data=csv_data,
+                    file_name=f"telegram_poraki_za_prakanje.csv",
+                    mime="text/csv",
+                    type="primary",
+                    key="btn_dl_auto_csv"
+                )
+                st.caption("Преземи го фајлот и искористи го со твојата локална скрипта за да ги пратиш сите пораки одеднаш.")
             else:
-                skipped_teams.append({'Предлагач': proposer, 'Активни': f"{active}/{total}", 'Фалат': missing})
+                st.info("Нема пораки за испраќање во моментов.")
+            st.markdown("---")
 
-        b1_c = sum(1 for m in messages_data if 'БРЗИНА 1' in m['Брзина'])
-        b2_m = sum(1 for m in messages_data if 'Мобилизација' in m['Брзина'])
-        b2_z = sum(1 for m in messages_data if 'Аларм' in m['Брзина'])
+            st.markdown("#### 📋 Преглед и Копирање на Поединечни Пораки (Удобно за Мобилен и Десктоп):")
+            filter_brzina = st.selectbox("Филтрирај по категорија:", ["Сите пораки", "🌟 БРЗИНА 1 (Топ тим)", "🔔 БРЗИНА 2 (Мобилизација)", "⚠️ БРЗИНА 2 (Аларм 0%)"])
+            filtered_msgs = [m for m in messages_data if filter_brzina == "Сите пораки" or m['Брзина'] == filter_brzina]
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("📨 Вкупно Пораки (>2 фалат)", len(messages_data))
-        c2.metric("🌟 Брзина 1 (Топ тимови)", b1_c)
-        c3.metric("🔔 Брзина 2 (Мобилизација)", b2_m)
-        c4.metric("⚠️ Брзина 2 (Аларм 0%)", b2_z)
+            sel_msg_prop = st.selectbox("Избери предлагач за преглед и копирање на неговата порака:", [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs]) if filtered_msgs else None
+            if sel_msg_prop:
+                idx_m = [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs].index(sel_msg_prop)
+                chosen_m = filtered_msgs[idx_m]
+                st.markdown(f"**Праќаме до Телеграм корисник:** `{chosen_m['Телеграм']}`")
+                st.code(chosen_m['Порака'], language="text")
 
-        with st.expander(f"🏆 Поштедени тимови со 0, 1 или 2 што фалат ({len(skipped_teams)} тимови)", expanded=False):
-            st.dataframe(pd.DataFrame(skipped_teams), use_container_width=True)
+        with tg_tabs[1]:
+            st.markdown("#### ✍️ Креирај и испрати твоја сопствена порака")
+            st.info("Овде можеш да напишеш било каков текст (на пр. честитка, повик за состанок, итно известување) и да го пратиш до одредени тимови.")
 
-        st.markdown("---")
-        st.markdown("#### 🤖 Автоматско испраќање преку Скрипта (prakac.py)")
-        if messages_data:
-            df_msgs = pd.DataFrame(messages_data)
-            csv_data = df_msgs.to_csv(index=False, encoding='utf-8-sig')
-            st.download_button(
-                label="📥 Преземи CSV фајл за автоматската скрипта (prakac.py)",
-                data=csv_data,
-                file_name=f"telegram_poraki_za_prakanje.csv",
-                mime="text/csv",
-                type="primary",
-                key="btn_dl_auto_csv"
+            custom_msg = st.text_area(
+                "Внеси го текстот на пораката:\n💡 Совет: Напиши **{име}** каде што сакаш да стои името на соговорникот (на пр. 'Здраво {име}, те молам...').",
+                height=150
             )
-            st.caption("Преземи го фајлот и искористи го со твојата локална скрипта за да ги пратиш сите пораки одеднаш.")
-        else:
-            st.info("Нема пораки за испраќање во моментов.")
-        st.markdown("---")
 
-        st.markdown("#### 📋 Преглед и Копирање на Поединечни Пораки (Удобно за Мобилен и Десктоп):")
-        filter_brzina = st.selectbox("Филтрирај по категорија:", ["Сите пораки", "🌟 БРЗИНА 1 (Топ тим)", "🔔 БРЗИНА 2 (Мобилизација)", "⚠️ БРЗИНА 2 (Аларм 0%)"])
-        filtered_msgs = [m for m in messages_data if filter_brzina == "Сите пораки" or m['Брзина'] == filter_brzina]
+            df_comp = tables_data['_comp']
+            target_mode = st.radio(
+                "Избери до кого да се прати:",
+                ["Сите тимови", "Група IV (≥65%)", "Група III (50-65%)", "Група II (30-50%)", "Група I (≤30%)", "Рачен избор на тимови"],
+                horizontal=True
+            )
 
-        sel_msg_prop = st.selectbox("Избери предлагач за преглед и копирање на неговата порака:", [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs]) if filtered_msgs else None
-        if sel_msg_prop:
-            idx_m = [f"{m['Предлагач']} ({m['Активни']} - {m['Брзина']})" for m in filtered_msgs].index(sel_msg_prop)
-            chosen_m = filtered_msgs[idx_m]
-            st.markdown(f"**Праќаме до Телеграм корисник:** `{chosen_m['Телеграм']}`")
-            st.code(chosen_m['Порака'], language="text")
-
-    with tg_tabs[1]:
-        st.markdown("#### ✍️ Креирај и испрати твоја сопствена порака")
-        st.info("Овде можеш да напишеш било каков текст (на пр. честитка, повик за состанок, итно известување) и да го пратиш до одредени тимови.")
-
-        custom_msg = st.text_area(
-            "Внеси го текстот на пораката:\n💡 Совет: Напиши **{име}** каде што сакаш да стои името на соговорникот (на пр. 'Здраво {име}, те молам...').",
-            height=150
-        )
-
-        df_comp = tables_data['_comp']
-        target_mode = st.radio(
-            "Избери до кого да се прати:",
-            ["Сите тимови", "Група IV (≥65%)", "Група III (50-65%)", "Група II (30-50%)", "Група I (≤30%)", "Рачен избор на тимови"],
-            horizontal=True
-        )
-
-        selected_proposers = []
-        if target_mode == "Сите тимови":
-            selected_proposers = df_comp['Предлагач'].tolist()
-        elif target_mode.startswith("Група"):
-            gr_code = target_mode.split()[1] # IV, III, II, I
-            selected_proposers = df_comp[df_comp['ГР.'] == gr_code]['Предлагач'].tolist()
-        else:
-            selected_proposers = st.multiselect("Избери предлагачи од листата:", df_comp['Предлагач'].tolist())
-
-        st.write(f"📌 **Вкупно селектирани примачи:** {len(selected_proposers)}")
-
-        if st.button("🔄 Генерирај листа за праќање (CSV)"):
-            if not custom_msg.strip():
-                st.error("Внеси текст на пораката!")
-            elif not selected_proposers:
-                st.error("Избери барем еден тим/предлагач!")
+            selected_proposers = []
+            if target_mode == "Сите тимови":
+                selected_proposers = df_comp['Предлагач'].tolist()
+            elif target_mode.startswith("Група"):
+                gr_code = target_mode.split()[1] # IV, III, II, I
+                selected_proposers = df_comp[df_comp['ГР.'] == gr_code]['Предлагач'].tolist()
             else:
-                custom_messages_data = []
-                for prop in selected_proposers:
-                    row = df_comp[df_comp['Предлагач'] == prop].iloc[0]
-                    tg_n = row['Телеграм назив']
-                    if pd.notna(tg_n) and str(tg_n).strip() != '':
-                        first_name = str(prop).split()[0].split('(')[0].strip()
-                        first_name = NAME_MAP_CYR.get(first_name, first_name)
+                selected_proposers = st.multiselect("Избери предлагачи од листата:", df_comp['Предлагач'].tolist())
 
-                        final_msg = custom_msg.replace("{име}", first_name).replace("{ime}", first_name)
+            st.write(f"📌 **Вкупно селектирани примачи:** {len(selected_proposers)}")
 
-                        custom_messages_data.append({
-                            'Предлагач': prop,
-                            'Телеграм': str(tg_n).strip(),
-                            'Порака': final_msg
-                        })
-
-                if custom_messages_data:
-                    st.success(f"✅ Успешно генерирани пораки за {len(custom_messages_data)} корисници кои имаат Телеграм.")
-                    df_custom = pd.DataFrame(custom_messages_data)
-                    csv_data = df_custom.to_csv(index=False, encoding='utf-8-sig')
-                    st.download_button(
-                        label="📥 Преземи CSV за скриптата (prakac.py)",
-                        data=csv_data,
-                        file_name=f"telegram_custom_poraki.csv",
-                        mime="text/csv",
-                        type="primary",
-                        key="btn_dl_custom_csv"
-                    )
-                    with st.expander("👁️ Преглед на генерираните пораки", expanded=False):
-                        st.dataframe(df_custom, use_container_width=True)
+            if st.button("🔄 Генерирај листа за праќање (CSV)"):
+                if not custom_msg.strip():
+                    st.error("Внеси текст на пораката!")
+                elif not selected_proposers:
+                    st.error("Избери барем еден тим/предлагач!")
                 else:
-                    st.warning("Избраните предлагачи немаат внесен Телеграм јузернејм во базата.")
+                    custom_messages_data = []
+                    for prop in selected_proposers:
+                        row = df_comp[df_comp['Предлагач'] == prop].iloc[0]
+                        tg_n = row['Телеграм назив']
+                        if pd.notna(tg_n) and str(tg_n).strip() != '':
+                            first_name = str(prop).split()[0].split('(')[0].strip()
+                            first_name = NAME_MAP_CYR.get(first_name, first_name)
+
+                            final_msg = custom_msg.replace("{име}", first_name).replace("{ime}", first_name)
+
+                            custom_messages_data.append({
+                                'Предлагач': prop,
+                                'Телеграм': str(tg_n).strip(),
+                                'Порака': final_msg
+                            })
+
+                    if custom_messages_data:
+                        st.success(f"✅ Успешно генерирани пораки за {len(custom_messages_data)} корисници кои имаат Телеграм.")
+                        df_custom = pd.DataFrame(custom_messages_data)
+                        csv_data = df_custom.to_csv(index=False, encoding='utf-8-sig')
+                        st.download_button(
+                            label="📥 Преземи CSV за скриптата (prakac.py)",
+                            data=csv_data,
+                            file_name=f"telegram_custom_poraki.csv",
+                            mime="text/csv",
+                            type="primary",
+                            key="btn_dl_custom_csv"
+                        )
+                        with st.expander("👁️ Преглед на генерираните пораки", expanded=False):
+                            st.dataframe(df_custom, use_container_width=True)
+                    else:
+                        st.warning("Избраните предлагачи немаат внесен Телеграм јузернејм во базата.")
+    run_tab4()
 
 elif menu.startswith("🔍 5."):
-    st.markdown('<div class="sub-header">🔍 Брзо Пребарување низ Базата и Алијас Речник</div>', unsafe_allow_html=True)
-    q = st.text_input("Внеси име, презиме, предлагач или алијас:")
-    if q:
-        res = df_main[
-            df_main['Име и презиме / Профил'].astype(str).str.contains(q, case=False, na=False) |
-            df_main['Предложувач'].astype(str).str.contains(q, case=False, na=False)
-        ]
-        st.info(f"Пронајдени се **{len(res)}** записи за '{q}':")
-        st.dataframe(res[['Р.б.', 'Име и презиме / Профил', 'Предложувач', 'Име на Телеграм (За пребарување)'] + eval_cols[-3:]], use_container_width=True)
+    @st.fragment
+    def run_tab5():
+        st.markdown('<div class="sub-header">🔍 Брзо Пребарување низ Базата и Алијас Речник</div>', unsafe_allow_html=True)
+        q = st.text_input("Внеси име, презиме, предлагач или алијас:")
+        if q:
+            res = df_main[
+                df_main['Име и презиме / Профил'].astype(str).str.contains(q, case=False, na=False) |
+                df_main['Предложувач'].astype(str).str.contains(q, case=False, na=False)
+            ]
+            st.info(f"Пронајдени се **{len(res)}** записи за '{q}':")
+            st.dataframe(res[['Р.б.', 'Име и презиме / Профил', 'Предложувач', 'Име на Телеграм (За пребарување)'] + eval_cols[-3:]], use_container_width=True)
 
-    with st.expander("📚 Преглед на вградениот Алијас Речник (Двојни профили, момински презимиња и страници)", expanded=True):
-        alias_rows = [{"Име во База / Клуч": k, "Поврзани ФБ Профили / Алијаси": ", ".join(v)} for k, v in ALIAS_MAP.items()]
-        st.dataframe(pd.DataFrame(alias_rows), use_container_width=True, height=400)
+        with st.expander("📚 Преглед на вградениот Алијас Речник (Двојни профили, момински презимиња и страници)", expanded=True):
+            alias_rows = [{"Име во База / Клуч": k, "Поврзани ФБ Профили / Алијаси": ", ".join(v)} for k, v in ALIAS_MAP.items()]
+            st.dataframe(pd.DataFrame(alias_rows), use_container_width=True, height=400)
+    run_tab5()
 
 # ------------------------------------------------------------------------------
 # ТАБ 6: МОБИЛЕН ПРИСТАП И ИКОНА НА ТЕЛЕФОН
