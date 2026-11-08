@@ -1429,31 +1429,11 @@ elif menu.startswith("🔍 6."):
 # ------------------------------------------------------------------------------
 # ТАБ 6: МОБИЛЕН ПРИСТАП И ИКОНА НА ТЕЛЕФОН
 # ------------------------------------------------------------------------------
-elif menu.startswith("📱 7."):
-    st.markdown('<div class="sub-header">📱 Поврзување од Мобилен Телефон и Додавање Икона</div>', unsafe_allow_html=True)
-    try:
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-    except Exception:
-        local_ip = "192.168.1.X"
-
-    st.markdown(f"""
-    ### 1️⃣ Кога работиш преку Streamlit Cloud (Онлајн од секаде):
-    * Откако ќе ги прикачиш **`app.py`**, **`{latest_file}`** и **`requirements.txt`** на GitHub и ќе ја пуштиш на [share.streamlit.io](https://share.streamlit.io), добиваш постојан линк.
-    * Отвори го тој линк во Chrome (Android) или Safari (iPhone) и избери **„Add to Home Screen“ (Додади на почетен екран)** за да добиеш директна икона на телефонот.
-
-    ### 2️⃣ Кога работиш локално преку ист Wi-Fi:
-    * Стартувај во CMD со: `streamlit run app.py --server.address 0.0.0.0`
-    * Отвори го овој линк на телефонот: **`http://{local_ip}:8501`**
-    """)
-# ------------------------------------------------------------------------------
-# ТАБ 8: GEMINI AI АГЕНТ ЗА РАЗГОВОР СО БАЗАТА
-# ------------------------------------------------------------------------------
 elif menu.startswith("🤖 8."):
     st.markdown('<div class="sub-header">🤖 Gemini AI Агент - Разговарај со Базата</div>', unsafe_allow_html=True)
     st.write("Овде можеш директно да му поставуваш прашања на AI агентот на македонски јазик. Тој директно чита од `Glavna Baza`.")
 
-if "GOOGLE_API_KEY" in st.secrets:
+    if "GOOGLE_API_KEY" in st.secrets:
         try:
             from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
             from langchain_openai import ChatOpenAI
@@ -1461,7 +1441,7 @@ if "GOOGLE_API_KEY" in st.secrets:
             st.error("⚠️ Недостасуваат библиотеки! Во requirements.txt додај: langchain, langchain-experimental, langchain-openai, tabulate")
             st.stop()
 
-        # Иницијализација на Gemini преку стабилниот универзален линк
+        # Иницијализација на Gemini преку стабилниот универзален линк (заобиколува стари сервери)
         llm = ChatOpenAI(
             model="gemini-1.5-flash", 
             temperature=0, 
