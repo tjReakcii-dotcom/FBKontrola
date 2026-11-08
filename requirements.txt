@@ -3,5 +3,5 @@ pandas
 openpyxl
 langchain
 langchain-experimental
-langchain-openai
+langchain-google-genai
 tabulate
