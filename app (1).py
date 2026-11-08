@@ -1463,7 +1463,7 @@ elif menu.startswith("🤖 8."):
 
         # Иницијализација на Gemini
         llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash-latest", # <-- Само додај -latest 
+        model="gemini-pro", # <-- Само додај -latest 
         temperature=0, 
         google_api_key=st.secrets["GOOGLE_API_KEY"]
         )
