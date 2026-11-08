@@ -1436,16 +1436,17 @@ elif menu.startswith("🤖 8."):
     if "GOOGLE_API_KEY" in st.secrets:
         try:
             from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_openai import ChatOpenAI
         except ImportError:
-            st.error("⚠️ Недостасуваат библиотеки! Во requirements.txt додај: langchain, langchain-experimental, langchain-google-genai, tabulate")
+            st.error("⚠️ Недостасуваат библиотеки! Во requirements.txt додај: langchain, langchain-experimental, langchain-openai, tabulate")
             st.stop()
 
-        # Иницијализација на Gemini (Најнова верзија)
-        llm = ChatGoogleGenerativeAI(
+        # Трикот: Го користиме стабилниот универзален линк (v1beta) за да го скокнеме багот на Google
+        llm = ChatOpenAI(
             model="gemini-1.5-flash", 
             temperature=0, 
-            google_api_key=st.secrets["GOOGLE_API_KEY"]
+            api_key=st.secrets["GOOGLE_API_KEY"],
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )
         
         # Креирање на агентот
