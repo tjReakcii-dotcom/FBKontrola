@@ -1453,22 +1453,23 @@ elif menu.startswith("🤖 8."):
     st.markdown('<div class="sub-header">🤖 Gemini AI Агент - Разговарај со Базата</div>', unsafe_allow_html=True)
     st.write("Овде можеш директно да му поставуваш прашања на AI агентот на македонски јазик. Тој директно чита од `Glavna Baza`.")
 
-    if "GOOGLE_API_KEY" in st.secrets:
+if "GOOGLE_API_KEY" in st.secrets:
         try:
             from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_openai import ChatOpenAI
         except ImportError:
-            st.error("⚠️ **Недостасуваат библиотеки!** За да работи агентот, во `requirements.txt` на GitHub мора да ги додадеш овие линии:\n\n`langchain`\n`langchain-experimental`\n`langchain-google-genai`\n`tabulate`")
+            st.error("⚠️ Недостасуваат библиотеки! Во requirements.txt додај: langchain, langchain-experimental, langchain-openai, tabulate")
             st.stop()
 
-        # Иницијализација на Gemini
-        llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash", 
-        temperature=0, 
-        google_api_key=st.secrets["GOOGLE_API_KEY"]
-    )
+        # Иницијализација на Gemini преку стабилниот универзален линк
+        llm = ChatOpenAI(
+            model="gemini-1.5-flash", 
+            temperature=0, 
+            api_key=st.secrets["GOOGLE_API_KEY"],
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
         
-        # Креирање на агентот врз основа на df_main (твојата главна база)
+        # Креирање на агентот
         agent = create_pandas_dataframe_agent(
             llm, 
             df_main, 
