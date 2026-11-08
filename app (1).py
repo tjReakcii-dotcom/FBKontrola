@@ -1463,10 +1463,10 @@ elif menu.startswith("🤖 8."):
 
         # Иницијализација на Gemini
         llm = ChatGoogleGenerativeAI(
-        model="gemini-pro", # <-- Само додај -latest 
+        model="gemini-1.5-flash", 
         temperature=0, 
         google_api_key=st.secrets["GOOGLE_API_KEY"]
-        )
+    )
         
         # Креирање на агентот врз основа на df_main (твојата главна база)
         agent = create_pandas_dataframe_agent(
