@@ -1438,10 +1438,9 @@ elif menu.startswith("🤖 8."):
             from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
             from langchain_google_genai import ChatGoogleGenerativeAI
         except ImportError:
-            st.error("⚠️ Недостасуваат библиотеки! Во requirements.txt додај: langchain, langchain-experimental, langchain-google-genai, tabulate")
+            st.error("⚠️ Библиотеките се инсталираат, ве молиме почекајте...")
             st.stop()
 
-        # Сега со новите верзии од requirements, ова 100% ќе го најде моделот
         llm = ChatGoogleGenerativeAI(
             model="gemini-1.5-flash", 
             temperature=0, 
