@@ -725,14 +725,23 @@ st.sidebar.markdown("### 🗄️ Мастер База")
 uploaded_master = st.sidebar.file_uploader("Прикачи понова база (.xlsx) доколку сакаш:", type=['xlsx'])
 if uploaded_master is not None:
     if "last_uploaded_file" not in st.session_state or st.session_state["last_uploaded_file"] != uploaded_master.name:
-        save_name = uploaded_master.name if 'kontrola' in uploaded_master.name else get_next_version_filename(latest_file)
-        with open(save_name, "wb") as f:
-            f.write(uploaded_master.getbuffer())
-        st.session_state["last_uploaded_file"] = uploaded_master.name
-        latest_file = save_name
-        st.sidebar.success(f"✅ Вчитана нова база: {latest_file}")
+        try:
+            # Читање на прикачениот фајл
+            xls_up = pd.ExcelFile(uploaded_master)
+            df_up = pd.read_excel(xls_up, sheet_name='Glavna Baza')
+            
+            # Генерирање нов број (ако последна е 296, станува 297)
+            next_ver_file = get_next_version_filename(latest_file)
+            
+            # Форматирање и ТРАЈНО испраќање на GitHub
+            save_formatted_excel(df_up, next_ver_file)
+            
+            st.session_state["last_uploaded_file"] = uploaded_master.name
+            latest_file = next_ver_file
+            st.sidebar.success(f"✅ Базата е успешно вчитана и трајно зачувана на GitHub како:\n**{latest_file}**")
+        except Exception as e:
+            st.sidebar.error(f"Грешка при обработка на фајлот: {e}")
     else:
-        # File was already uploaded and processed; let the system detect newer versions (like 221, 222) naturally
         latest_file = get_latest_excel()
 
 if not latest_file:
