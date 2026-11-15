@@ -1338,8 +1338,8 @@ elif menu.startswith("📨 4."):
 # 5. НОВО: АНАЛИТИЧКИ ДОСИЕЈА (МИКРОСКОПСКИ ПРЕГЛЕД)
 # ------------------------------------------------------------------------------
 elif menu.startswith("🕵️ 5."):
-    st.markdown('<div class="sub-header">🕵️ Аналитички Досиеја (Микроскопски Преглед на Тимови и Членови)</div>', unsafe_allow_html=True)
-    dosie_tabs = st.tabs(["🏢 Досие на Предлагач (Тимски Анализи)", "👤 Досие на Член (Индивидуални Анализи)"])
+    st.markdown('<div class="sub-header">🕵️ Аналитички Досиеја (Микро и Макро Анализи на Мрежата)</div>', unsafe_allow_html=True)
+    dosie_tabs = st.tabs(["🏢 Досие на Предлагач (Тимски Анализи)", "👤 Досие на Член (Индивидуални Анализи)", "📊 Досие на Објави (Мрежа & Админ)"])
     
     official_cols = get_official_posts(df_main)
     last_10 = official_cols[-10:] if len(official_cols) >= 10 else official_cols
@@ -1418,6 +1418,96 @@ elif menu.startswith("🕵️ 5."):
             for c in reversed(last_10):
                 hist_data.append({"Објава": c, "Реакција": "✅ Кликнал" if '✅' in str(r[c]) else "❌ Нема реакција"})
             st.dataframe(pd.DataFrame(hist_data), use_container_width=True)
+
+
+    with dosie_tabs[2]:
+        st.markdown("Овде ја гледаш големата слика за целата мрежа и можеш да преименуваш или бришеш колони (објави) со два клика.")
+        
+        st.markdown("#### 📈 Движење на мрежата (Вкупно лајкови по објава)")
+        net_trend = []
+        for c in eval_cols:
+            act = (df_main[c].astype(str).str.contains('✅', na=False)).sum()
+            net_trend.append({"Објава": c, "Вкупно Лајкови": act})
+        df_net = pd.DataFrame(net_trend)
+        st.bar_chart(df_net.set_index("Објава")["Вкупно Лајкови"], color="#274E13")
+
+        st.markdown("---")
+        st.markdown("#### ⚙️ Менаџмент и Детали за Објава")
+        
+        sel_col = st.selectbox("Избери објава (колона) за анализа и администрација:", eval_cols[::-1], key="admin_col_sel")
+        
+        if sel_col:
+            act_col = (df_main[sel_col].astype(str).str.contains('✅', na=False)).sum()
+            tot_net = len(df_main)
+            eff_col = (act_col / tot_net * 100) if tot_net > 0 else 0
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Вкупно реакции", f"{act_col} / {tot_net}")
+            c2.metric("Ефикасност на мрежата", f"{eff_col:.1f}%")
+            c3.metric("Редослед на објавата", f"#{eval_cols[::-1].index(sel_col) + 1} од најновите")
+            
+            team_stats = []
+            for prop, grp in df_main.groupby('Предложувач'):
+                t_act = (grp[sel_col].astype(str).str.contains('✅', na=False)).sum()
+                t_tot = len(grp)
+                t_eff = (t_act / t_tot * 100) if t_tot > 0 else 0
+                if t_tot > 0:
+                    team_stats.append({
+                        "Тим (Предлагач)": prop, 
+                        "Реакции": f"{t_act}/{t_tot}", 
+                        "Ефикасност": t_eff, 
+                        "Ефикасност %": f"{t_eff:.1f}%"
+                    })
+            
+            df_ts = pd.DataFrame(team_stats).sort_values(by="Ефикасност", ascending=False).head(3)
+            
+            st.markdown(f"🏆 **Топ 3 најефикасни тимови за '{sel_col}':**")
+            st.dataframe(df_ts[["Тим (Предлагач)", "Реакции", "Ефикасност %"]], use_container_width=True)
+            
+            st.markdown("##### 🛠️ Администрација на колоната (Промените се трајни и се зачувуваат на GitHub)")
+            admin_c1, admin_c2 = st.columns(2)
+            
+            with admin_c1:
+                with st.form("rename_col_form"):
+                    new_col_name = st.text_input("Преименувај ја објавата (колоната):", value=sel_col)
+                    submit_rename = st.form_submit_button("📝 Зачувај ново име")
+                    if submit_rename and new_col_name.strip() and new_col_name != sel_col:
+                        df_updated = df_main.rename(columns={sel_col: new_col_name.strip()})
+                        next_file = get_next_version_filename(latest_file)
+                        save_formatted_excel(df_updated, next_file)
+                        
+                        # Ажурирај ја историјата на линкови со новото име
+                        for h in links_meta.get("history", []):
+                            if h["post_col"] == sel_col:
+                                h["post_col"] = new_col_name.strip()
+                        save_links_meta(links_meta)
+                        
+                        st.success(f"✅ Колоната е преименувана во '{new_col_name.strip()}' и веднаш зачувана на GitHub!")
+                        st.rerun()
+                        
+            with admin_c2:
+                with st.form("delete_col_form"):
+                    st.error("ВНИМАНИЕ: Ова трајно ќе ја избрише колоната од базата!")
+                    confirm_del = st.checkbox("Потврдувам дека сакам да ја избришам оваа објава")
+                    submit_delete = st.form_submit_button("🗑️ Избриши ја објавата")
+                    if submit_delete:
+                        if confirm_del:
+                            if len(eval_cols) <= 1:
+                                st.warning("Не можете да ја избришете последната останата објава во базата.")
+                            else:
+                                df_updated = df_main.drop(columns=[sel_col])
+                                next_file = get_next_version_filename(latest_file)
+                                save_formatted_excel(df_updated, next_file)
+                                
+                                # Исчисти ја историјата на линкови
+                                links_meta["history"] = [h for h in links_meta.get("history", []) if h["post_col"] != sel_col]
+                                save_links_meta(links_meta)
+                                
+                                st.success(f"✅ Објавата '{sel_col}' е успешно избришана од базата!")
+                                st.rerun()
+                        else:
+                            st.warning("Мора да штиклирате 'Потврдувам...' за да избришете.")
+
 
 elif menu.startswith("🔍 6."):
     st.markdown('<div class="sub-header">🔍 Брзо Пребарување низ Базата и Алијас Речник</div>', unsafe_allow_html=True)
