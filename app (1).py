@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
+\"\"\"
 Мастер Веб-Апликација (Десктоп + Мобилен) за ФБ Контрола,
 Длабински Фузи-Пресеци, Преглед на Линкови од Објави,
 Управување со Тимови (Додавање/Бришење/Замена) и Телеграм Потсетници во Две Брзини.
-"""
+\"\"\"
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # Стилизирање за Десктоп и Мобилен приказ
-st.markdown("""
+st.markdown(\"\"\"
 <style>
     .main-header { font-size: 26px; font-weight: 800; color: #1F497D; margin-bottom: 6px; }
     .sub-header { font-size: 19px; font-weight: 700; color: #274E13; margin-top: 12px; margin-bottom: 8px; }
@@ -55,7 +55,7 @@ st.markdown("""
         font-weight: bold;
     }
 </style>
-""", unsafe_allow_html=True)
+\"\"\", unsafe_allow_html=True)
 
 # ==============================================================================
 # 0. ЗАШТИТА СО ЛОЗИНКА (LOGIN SYSTEM)
@@ -656,7 +656,7 @@ def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
     cur_title = links_meta.get("current_title", "Актуелна ФБ Објава")
     latest_col = eval_cols[-1] if eval_cols else "Нема колона"
 
-    st.markdown(f"""
+    st.markdown(f\"\"\"
     <div class="link-card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div>
@@ -671,7 +671,7 @@ def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
             👉 Директен линк: <a href="{cur_link}" target="_blank" style="font-weight:bold; color:#0b57d0;">{cur_link}</a>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    \"\"\", unsafe_allow_html=True)
 
     with st.expander("👁️ Прикажи Визуелен Преглед (Live Preview) и Промени Линк на Објавата", expanded=False):
         c1, c2 = st.columns([3, 2])
@@ -730,7 +730,7 @@ if uploaded_master is not None:
             xls_up = pd.ExcelFile(uploaded_master)
             df_up = pd.read_excel(xls_up, sheet_name='Glavna Baza')
             
-            # Генерирање нов број (ако последна е 296, станува 297)
+            # Генерирање нов број
             next_ver_file = get_next_version_filename(latest_file)
             
             # Форматирање и ТРАЈНО испраќање на GitHub
@@ -738,7 +738,7 @@ if uploaded_master is not None:
             
             st.session_state["last_uploaded_file"] = uploaded_master.name
             latest_file = next_ver_file
-            st.sidebar.success(f"✅ Базата е успешно вчитана и трајно зачувана на GitHub како:\n**{latest_file}**")
+            st.sidebar.success(f"✅ Базата е успешно вчитана и трајно зачувана на GitHub како:\\n**{latest_file}**")
         except Exception as e:
             st.sidebar.error(f"Грешка при обработка на фајлот: {e}")
     else:
@@ -748,7 +748,7 @@ if not latest_file:
     st.error("❌ Не е пронајден Excel фајл со мастер базата (`kontrola_klik_...xlsx`)! Прикачи го во левото мени.")
     st.stop()
 
-st.sidebar.success(f"📂 Активна верзија:\n**{latest_file}**")
+st.sidebar.success(f"📂 Активна верзија:\\n**{latest_file}**")
 
 # Копче за симнување на најновата база во секое време
 with open(latest_file, "rb") as f_dl:
@@ -775,8 +775,7 @@ menu = st.sidebar.radio(
         "📨 4. Телеграм Потсетници (Две Брзини)",
         "🕵️ 5. Аналитички Досиеја (Профили)",
         "🔍 6. Пребарување & Алијас Речник",
-        "📱 7. Мобилен Пристап & Икона",
-        "🤖 8. AI Агент (Gemini)"  # 
+        "📱 7. Мобилен Пристап & Икона"
     ]
 )
 
@@ -1436,52 +1435,22 @@ elif menu.startswith("🔍 6."):
         st.dataframe(pd.DataFrame(alias_rows), use_container_width=True, height=400)
 
 # ------------------------------------------------------------------------------
-# ТАБ 6: МОБИЛЕН ПРИСТАП И ИКОНА НА ТЕЛЕФОН
+# 7. МОБИЛЕН ПРИСТАП И ИКОНА НА ТЕЛЕФОН
 # ------------------------------------------------------------------------------
-elif menu.startswith("🤖 8."):
-    st.markdown('<div class="sub-header">🤖 Gemini AI Агент - Разговарај со Базата</div>', unsafe_allow_html=True)
-    st.write("Овде можеш директно да му поставуваш прашања на AI агентот на македонски јазик. Тој директно чита од `Glavna Baza`.")
+elif menu.startswith("📱 7."):
+    st.markdown('<div class="sub-header">📱 Поврзување од Мобилен Телефон и Додавање Икона</div>', unsafe_allow_html=True)
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+    except Exception:
+        local_ip = "192.168.1.X"
 
-    if "GOOGLE_API_KEY" in st.secrets:
-        try:
-            from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-            from langchain_google_genai import ChatGoogleGenerativeAI
-        except ImportError:
-            st.error("⚠️ Библиотеките се инсталираат, ве молиме почекајте...")
-            st.stop()
+    st.markdown(f\"\"\"
+    ### 1️⃣ Кога работиш преку Streamlit Cloud (Онлајн од секаде):
+    * Откако ќе ги прикачиш **`app.py`**, **`{latest_file}`** и **`requirements.txt`** на GitHub и ќе ја пуштиш на [share.streamlit.io](https://share.streamlit.io), добиваш постојан линк.
+    * Отвори го тој линк во Chrome (Android) или Safari (iPhone) и избери **„Add to Home Screen“ (Додади на почетен екран)** за да добиеш директна икона на телефонот.
 
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash", 
-            temperature=0, 
-            google_api_key=st.secrets["GOOGLE_API_KEY"]
-        )
-        
-        agent = create_pandas_dataframe_agent(
-            llm, 
-            df_main, 
-            verbose=True, 
-            allow_dangerous_code=True
-        )
-
-        if "agent_messages" not in st.session_state:
-            st.session_state.agent_messages = []
-
-        for message in st.session_state.agent_messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-
-        if prompt := st.chat_input("Пр: Колку вкупно луѓе има во базата?"):
-            st.session_state.agent_messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            with st.chat_message("assistant"):
-                with st.spinner("Gemini ги анализира податоците..."):
-                    try:
-                        odgovor = agent.invoke(prompt)["output"]
-                        st.markdown(odgovor)
-                        st.session_state.agent_messages.append({"role": "assistant", "content": odgovor})
-                    except Exception as e:
-                        st.error(f"Настана грешка при извршување на анализата: {e}")
-    else:
-        st.warning("Внеси `GOOGLE_API_KEY` во Streamlit Secrets (на share.streamlit.io) за да го активираш агентот.")
+    ### 2️⃣ Кога работиш локално преку ист Wi-Fi:
+    * Стартувај во CMD со: `streamlit run app.py --server.address 0.0.0.0`
+    * Отвори го овој линк на телефонот: **`http://{local_ip}:8501`**
+    \"\"\")
