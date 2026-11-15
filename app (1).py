@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-\"\"\"
+"""
 Мастер Веб-Апликација (Десктоп + Мобилен) за ФБ Контрола,
 Длабински Фузи-Пресеци, Преглед на Линкови од Објави,
 Управување со Тимови (Додавање/Бришење/Замена) и Телеграм Потсетници во Две Брзини.
-\"\"\"
+"""
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -27,7 +27,7 @@ st.set_page_config(
 )
 
 # Стилизирање за Десктоп и Мобилен приказ
-st.markdown(\"\"\"
+st.markdown("""
 <style>
     .main-header { font-size: 26px; font-weight: 800; color: #1F497D; margin-bottom: 6px; }
     .sub-header { font-size: 19px; font-weight: 700; color: #274E13; margin-top: 12px; margin-bottom: 8px; }
@@ -55,7 +55,7 @@ st.markdown(\"\"\"
         font-weight: bold;
     }
 </style>
-\"\"\", unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ==============================================================================
 # 0. ЗАШТИТА СО ЛОЗИНКА (LOGIN SYSTEM)
@@ -656,7 +656,7 @@ def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
     cur_title = links_meta.get("current_title", "Актуелна ФБ Објава")
     latest_col = eval_cols[-1] if eval_cols else "Нема колона"
 
-    st.markdown(f\"\"\"
+    st.markdown(f"""
     <div class="link-card">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div>
@@ -671,7 +671,7 @@ def render_post_link_preview_box(links_meta, eval_cols, key_suffix="main"):
             👉 Директен линк: <a href="{cur_link}" target="_blank" style="font-weight:bold; color:#0b57d0;">{cur_link}</a>
         </div>
     </div>
-    \"\"\", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     with st.expander("👁️ Прикажи Визуелен Преглед (Live Preview) и Промени Линк на Објавата", expanded=False):
         c1, c2 = st.columns([3, 2])
@@ -1445,7 +1445,7 @@ elif menu.startswith("📱 7."):
     except Exception:
         local_ip = "192.168.1.X"
 
-    st.markdown(f\"\"\"
+    st.markdown(f"""
     ### 1️⃣ Кога работиш преку Streamlit Cloud (Онлајн од секаде):
     * Откако ќе ги прикачиш **`app.py`**, **`{latest_file}`** и **`requirements.txt`** на GitHub и ќе ја пуштиш на [share.streamlit.io](https://share.streamlit.io), добиваш постојан линк.
     * Отвори го тој линк во Chrome (Android) или Safari (iPhone) и избери **„Add to Home Screen“ (Додади на почетен екран)** за да добиеш директна икона на телефонот.
@@ -1453,4 +1453,4 @@ elif menu.startswith("📱 7."):
     ### 2️⃣ Кога работиш локално преку ист Wi-Fi:
     * Стартувај во CMD со: `streamlit run app.py --server.address 0.0.0.0`
     * Отвори го овој линк на телефонот: **`http://{local_ip}:8501`**
-    \"\"\")
+    """)
